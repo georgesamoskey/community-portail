@@ -61,7 +61,7 @@ export default function SupportPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-6">
-      <PageHeader title={t("support.title")} subtitle={t("support.desc")} />
+      <PageHeader title={t("support.title")} description={t("support.desc")} />
 
       <Panel>
         <p className="mb-3 text-sm font-semibold text-ink">{t("support.new")}</p>
