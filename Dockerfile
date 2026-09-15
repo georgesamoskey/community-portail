@@ -18,7 +18,8 @@ ENV NEXT_PUBLIC_EAGASEKE_ORIGIN=$NEXT_PUBLIC_EAGASEKE_ORIGIN \
     NEXT_PUBLIC_CMS_URL=$NEXT_PUBLIC_CMS_URL \
     NEXT_PUBLIC_EAGASEKE_WS_ORIGIN=$NEXT_PUBLIC_EAGASEKE_WS_ORIGIN
 
-RUN npm run build
+# Next standalone exige public/ même vide
+RUN mkdir -p public && npm run build
 
 FROM node:24-bookworm-slim AS runner
 WORKDIR /app
