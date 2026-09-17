@@ -68,11 +68,22 @@ type TontineDetail = {
   order?: string[];
 };
 
+type AscaLoan = {
+  id?: string;
+  status?: string;
+  principal?: number;
+  amountOwed?: number;
+  penaltyAccrued?: number;
+  borrowerUserId?: string;
+};
+
 type AscaOverview = {
   fundTotal?: number;
   fundAvailable?: number;
+  socialFundTotal?: number;
+  totalShares?: number;
   currency?: string;
-  loans?: unknown[];
+  loans?: AscaLoan[];
 };
 
 export default function TontineDetailPage() {
@@ -137,6 +148,7 @@ export default function TontineDetailPage() {
   const [feePreview, setFeePreview] = useState<unknown>(null);
   const [tab, setTab] = useState<"overview" | "rounds" | "people" | "setup">("rounds");
   const [ascaDepositAmount, setAscaDepositAmount] = useState("");
+  const [ascaOpenNext, setAscaOpenNext] = useState(true);
 
   useEffect(() => {
     markChecklist("opened_tontine");
@@ -450,6 +462,16 @@ export default function TontineDetailPage() {
                     asca.data?.currency ?? ton.currency ?? "BIF",
                   )}
                 </Badge>
+                <Badge>
+                  Fonds social :{" "}
+                  {money(
+                    asca.data?.socialFundTotal,
+                    asca.data?.currency ?? ton.currency ?? "BIF",
+                  )}
+                </Badge>
+                <Badge tone="info">
+                  Parts : {asca.data?.totalShares ?? "—"}
+                </Badge>
               </div>
               {asca.loading && (
                 <p className="mt-2 text-xs text-brand-600">{t("common.loading")}</p>
@@ -496,25 +518,104 @@ export default function TontineDetailPage() {
                 </Btn>
                 {(ton.myRole === "admin" ||
                   ton.currentUserMembership?.role === "admin") && (
-                  <Btn
-                    variant="secondary"
-                    disabled={action.busy}
-                    onClick={() => {
-                      if (!confirm("Clôturer le cycle ASCA ?")) return;
-                      void action.mutate(
-                        `/tontines/${id}/asca/close-cycle`,
-                        { method: "POST" },
-                        {
-                          success: "Cycle ASCA clôturé",
-                          onDone: reload,
-                        },
-                      );
-                    }}
-                  >
-                    Clôturer le cycle
-                  </Btn>
+                  <>
+                    <label className="flex items-center gap-2 text-xs text-ink-mute">
+                      <input
+                        type="checkbox"
+                        checked={ascaOpenNext}
+                        onChange={(e) => setAscaOpenNext(e.target.checked)}
+                      />
+                      Ouvrir le cycle suivant
+                    </label>
+                    <Btn
+                      variant="secondary"
+                      disabled={action.busy}
+                      onClick={() => {
+                        if (!confirm("Clôturer le cycle ASCA ?")) return;
+                        void action.mutate(
+                          `/tontines/${id}/asca/close-cycle`,
+                          {
+                            method: "POST",
+                            body: JSON.stringify({ openNext: ascaOpenNext }),
+                          },
+                          {
+                            success: "Cycle ASCA clôturé",
+                            onDone: reload,
+                          },
+                        );
+                      }}
+                    >
+                      Clôturer le cycle
+                    </Btn>
+                  </>
                 )}
               </div>
+              {(ton.myRole === "admin" ||
+                ton.currentUserMembership?.role === "admin") &&
+                (asca.data?.loans ?? []).some(
+                  (l) => (l.status ?? "").toLowerCase() === "requested",
+                ) && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs font-semibold text-ink">
+                      Prêts en attente
+                    </p>
+                    {(asca.data?.loans ?? [])
+                      .filter(
+                        (l) => (l.status ?? "").toLowerCase() === "requested",
+                      )
+                      .map((loan) => (
+                        <div
+                          key={loan.id}
+                          className="flex flex-wrap items-center gap-2 text-sm"
+                        >
+                          <span>
+                            {loan.borrowerUserId?.slice(0, 8)}… ·{" "}
+                            {money(
+                              loan.principal,
+                              asca.data?.currency ?? ton.currency ?? "BIF",
+                            )}
+                          </span>
+                          <Btn
+                            disabled={action.busy || !loan.id}
+                            onClick={() =>
+                              void action.mutate(
+                                `/tontines/${id}/asca/loans/${loan.id}/decide`,
+                                {
+                                  method: "POST",
+                                  body: JSON.stringify({ approve: true }),
+                                },
+                                {
+                                  success: "Prêt approuvé",
+                                  onDone: () => void asca.refresh(),
+                                },
+                              )
+                            }
+                          >
+                            Approuver
+                          </Btn>
+                          <Btn
+                            variant="secondary"
+                            disabled={action.busy || !loan.id}
+                            onClick={() =>
+                              void action.mutate(
+                                `/tontines/${id}/asca/loans/${loan.id}/decide`,
+                                {
+                                  method: "POST",
+                                  body: JSON.stringify({ approve: false }),
+                                },
+                                {
+                                  success: "Prêt rejeté",
+                                  onDone: () => void asca.refresh(),
+                                },
+                              )
+                            }
+                          >
+                            Rejeter
+                          </Btn>
+                        </div>
+                      ))}
+                  </div>
+                )}
             </Panel>
           )}
 
