@@ -75,6 +75,7 @@ type AscaLoan = {
   amountOwed?: number;
   penaltyAccrued?: number;
   borrowerUserId?: string;
+  payoutId?: string | null;
 };
 
 type AscaOverview = {
@@ -136,6 +137,9 @@ export default function TontineDetailPage() {
   const [provider, setProvider] = useState("");
   const [payerPhone, setPayerPhone] = useState("");
   const [disburseRound, setDisburseRound] = useState<number | null>(null);
+  const [disburseAscaLoanId, setDisburseAscaLoanId] = useState<string | null>(
+    null,
+  );
   const [disburseMethod, setDisburseMethod] = useState("mobile_money");
   const [disbursePhone, setDisbursePhone] = useState("");
   const [disburseProvider, setDisburseProvider] = useState("");
@@ -356,7 +360,7 @@ export default function TontineDetailPage() {
     );
 
   const disburse = () => {
-    if (disburseRound == null) return;
+    if (disburseRound == null && !disburseAscaLoanId) return;
     const destination =
       disburseMethod === "mobile_money"
         ? { provider: disburseProvider, phone: disbursePhone }
@@ -367,6 +371,28 @@ export default function TontineDetailPage() {
               bankName: "Banque",
               accountHolder: "Bénéficiaire",
             };
+    if (disburseAscaLoanId) {
+      void action.mutate(
+        `/tontines/${id}/asca/loans/${disburseAscaLoanId}/disburse`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            method: disburseMethod === "bank_transfer" ? "cash" : disburseMethod,
+            destination,
+            reason: "Décaissement prêt ASCA",
+          }),
+        },
+        {
+          success: "Demande de décaissement prêt créée",
+          onDone: () => {
+            setDisburseAscaLoanId(null);
+            void asca.refresh();
+            reload();
+          },
+        },
+      );
+      return;
+    }
     void action.mutate(
       `/tontines/${id}/rounds/${disburseRound}/disburse`,
       {
@@ -616,6 +642,74 @@ export default function TontineDetailPage() {
                       ))}
                   </div>
                 )}
+              {(ton.myRole === "admin" ||
+                ton.currentUserMembership?.role === "admin") &&
+                (asca.data?.loans ?? []).some(
+                  (l) =>
+                    (l.status ?? "").toLowerCase() === "approved" && !l.payoutId,
+                ) && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs font-semibold text-ink">
+                      Prêts à décaisser
+                    </p>
+                    {(asca.data?.loans ?? [])
+                      .filter(
+                        (l) =>
+                          (l.status ?? "").toLowerCase() === "approved" &&
+                          !l.payoutId,
+                      )
+                      .map((loan) => (
+                        <div
+                          key={`disburse-${loan.id}`}
+                          className="flex flex-wrap items-center gap-2 text-sm"
+                        >
+                          <span>
+                            {loan.borrowerUserId?.slice(0, 8)}… ·{" "}
+                            {money(
+                              loan.principal,
+                              asca.data?.currency ?? ton.currency ?? "BIF",
+                            )}
+                          </span>
+                          <Btn
+                            variant="secondary"
+                            disabled={action.busy || !loan.id}
+                            onClick={() =>
+                              void action.mutate(
+                                `/tontines/${id}/asca/loans/${loan.id}/disburse`,
+                                {
+                                  method: "POST",
+                                  body: JSON.stringify({ method: "cash" }),
+                                },
+                                {
+                                  success: "Prêt décaissé (cash)",
+                                  onDone: () => void asca.refresh(),
+                                },
+                              )
+                            }
+                          >
+                            Cash
+                          </Btn>
+                          <Btn
+                            disabled={action.busy || !loan.id}
+                            onClick={() => {
+                              setDisburseAscaLoanId(loan.id);
+                              setDisburseMethod("mobile_money");
+                            }}
+                          >
+                            Mobile Money
+                          </Btn>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              {(asca.data?.loans ?? []).some(
+                (l) =>
+                  (l.status ?? "").toLowerCase() === "approved" && !!l.payoutId,
+              ) && (
+                <p className="mt-3 text-xs text-ink-mute">
+                  Décaissement MM en cours d’approbation / exécution via Payouts.
+                </p>
+              )}
             </Panel>
           )}
 
@@ -1135,6 +1229,47 @@ export default function TontineDetailPage() {
                   {t("tontines.requestDisburse")}
                 </Btn>
                 <Btn variant="ghost" onClick={() => setDisburseRound(null)}>
+                  {t("common.close")}
+                </Btn>
+              </div>
+            </Panel>
+          )}
+
+          {disburseAscaLoanId != null && (
+            <Panel title="Décaissement prêt ASCA (Mobile Money)">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label={t("tontines.provider")}>
+                  <input
+                    className={inputClass}
+                    value={disburseProvider}
+                    onChange={(e) => setDisburseProvider(e.target.value)}
+                    placeholder="lumicash"
+                  />
+                </Field>
+                <Field label={t("common.phone")}>
+                  <input
+                    className={inputClass}
+                    value={disbursePhone}
+                    onChange={(e) => setDisbursePhone(e.target.value)}
+                  />
+                </Field>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <Btn
+                  disabled={
+                    action.busy || !disburseProvider || !disbursePhone
+                  }
+                  onClick={() => {
+                    setDisburseMethod("mobile_money");
+                    disburse();
+                  }}
+                >
+                  Demander le payout MM
+                </Btn>
+                <Btn
+                  variant="ghost"
+                  onClick={() => setDisburseAscaLoanId(null)}
+                >
                   {t("common.close")}
                 </Btn>
               </div>
