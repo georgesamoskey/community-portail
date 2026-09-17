@@ -50,6 +50,7 @@ type TontineDetail = {
   name?: string;
   description?: string;
   status?: string;
+  type?: string;
   contributionAmount?: number;
   currency?: string;
   seats?: number;
@@ -65,6 +66,13 @@ type TontineDetail = {
   currentUserMembership?: Member;
   seatOrder?: string[];
   order?: string[];
+};
+
+type AscaOverview = {
+  fundTotal?: number;
+  fundAvailable?: number;
+  currency?: string;
+  loans?: unknown[];
 };
 
 export default function TontineDetailPage() {
@@ -83,6 +91,9 @@ export default function TontineDetailPage() {
   );
 
   const ton = detail.data;
+  const asca = useBff<AscaOverview>(
+    id && ton?.type === "asca" ? `/tontines/${id}/asca` : null,
+  );
   const members = useMemo(
     () =>
       ton?.memberships ??
@@ -125,6 +136,7 @@ export default function TontineDetailPage() {
   const [roundPayouts, setRoundPayouts] = useState<unknown[]>([]);
   const [feePreview, setFeePreview] = useState<unknown>(null);
   const [tab, setTab] = useState<"overview" | "rounds" | "people" | "setup">("rounds");
+  const [ascaDepositAmount, setAscaDepositAmount] = useState("");
 
   useEffect(() => {
     markChecklist("opened_tontine");
@@ -139,6 +151,7 @@ export default function TontineDetailPage() {
   const reload = () => {
     void detail.refresh();
     void rounds.refresh();
+    void asca.refresh();
   };
 
   const memberUserIds = useMemo(
@@ -407,6 +420,9 @@ export default function TontineDetailPage() {
             {ton.status ? (
               <Badge tone={statusTone(ton.status)}>{ton.status}</Badge>
             ) : null}
+            {ton.type ? (
+              <Badge tone="info">{ton.type.toUpperCase()}</Badge>
+            ) : null}
             <Badge>
               {money(ton.contributionAmount, ton.currency ?? "BIF")} / tour
             </Badge>
@@ -416,6 +432,91 @@ export default function TontineDetailPage() {
               <Badge tone="info">{t("common.code")} : {ton.inviteCode ?? ton.joinCode}</Badge>
             )}
           </div>
+
+          {ton.type === "asca" && (
+            <Panel title="Fonds ASCA">
+              <div className="flex flex-wrap gap-3 text-sm">
+                <Badge>
+                  Total :{" "}
+                  {money(
+                    asca.data?.fundTotal,
+                    asca.data?.currency ?? ton.currency ?? "BIF",
+                  )}
+                </Badge>
+                <Badge tone="info">
+                  Disponible :{" "}
+                  {money(
+                    asca.data?.fundAvailable,
+                    asca.data?.currency ?? ton.currency ?? "BIF",
+                  )}
+                </Badge>
+              </div>
+              {asca.loading && (
+                <p className="mt-2 text-xs text-brand-600">{t("common.loading")}</p>
+              )}
+              {asca.error && (
+                <div className="mt-2">
+                  <Alert>{asca.error}</Alert>
+                </div>
+              )}
+              <div className="mt-4 flex flex-wrap items-end gap-3">
+                <div className="min-w-[10rem] flex-1">
+                  <Field label="Montant dépôt">
+                    <input
+                      className={inputClass}
+                      type="number"
+                      min={1}
+                      value={ascaDepositAmount}
+                      onChange={(e) => setAscaDepositAmount(e.target.value)}
+                    />
+                  </Field>
+                </div>
+                <Btn
+                  disabled={action.busy || Number(ascaDepositAmount) <= 0}
+                  onClick={() =>
+                    void action.mutate(
+                      `/tontines/${id}/asca/deposits`,
+                      {
+                        method: "POST",
+                        body: JSON.stringify({
+                          amount: Number(ascaDepositAmount),
+                        }),
+                      },
+                      {
+                        success: "Dépôt ASCA enregistré",
+                        onDone: () => {
+                          setAscaDepositAmount("");
+                          void asca.refresh();
+                        },
+                      },
+                    )
+                  }
+                >
+                  Déposer
+                </Btn>
+                {(ton.myRole === "admin" ||
+                  ton.currentUserMembership?.role === "admin") && (
+                  <Btn
+                    variant="secondary"
+                    disabled={action.busy}
+                    onClick={() => {
+                      if (!confirm("Clôturer le cycle ASCA ?")) return;
+                      void action.mutate(
+                        `/tontines/${id}/asca/close-cycle`,
+                        { method: "POST" },
+                        {
+                          success: "Cycle ASCA clôturé",
+                          onDone: reload,
+                        },
+                      );
+                    }}
+                  >
+                    Clôturer le cycle
+                  </Btn>
+                )}
+              </div>
+            </Panel>
+          )}
 
           {ton.chatRoomId ? (
             <a

@@ -25,6 +25,7 @@ type TontineItem = {
   name?: string;
   title?: string;
   status?: string;
+  type?: string;
   amount?: number;
   contributionAmount?: number;
   currency?: string;
@@ -51,6 +52,7 @@ export default function TontinesPage() {
   const [contributionAmount, setContributionAmount] = useState("10000");
   const [seats, setSeats] = useState("5");
   const [frequency, setFrequency] = useState("monthly");
+  const [type, setType] = useState("rosca");
   const [joinCode, setJoinCode] = useState("");
 
   const create = () =>
@@ -66,6 +68,7 @@ export default function TontinesPage() {
           frequency,
           currency: "BIF",
           country: "BI",
+          type,
         }),
       },
       {
@@ -192,6 +195,16 @@ export default function TontinesPage() {
                 <option value="monthly">{t("tontines.monthly")}</option>
               </select>
             </Field>
+            <Field label="Type">
+              <select
+                className={inputClass}
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+              >
+                <option value="rosca">ROSCA</option>
+                <option value="asca">ASCA</option>
+              </select>
+            </Field>
             <div className="sm:col-span-2">
               <Field label={t("common.description")}>
                 <textarea
@@ -253,9 +266,16 @@ export default function TontinesPage() {
                         ` · ${t("tontines.seatsCount", { n: item.seats })}`}
                     </p>
                   </div>
-                  {item.status ? (
-                    <Badge tone={statusTone(item.status)}>{item.status}</Badge>
-                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    {item.type ? (
+                      <Badge tone="info">
+                        {item.type.toUpperCase()}
+                      </Badge>
+                    ) : null}
+                    {item.status ? (
+                      <Badge tone={statusTone(item.status)}>{item.status}</Badge>
+                    ) : null}
+                  </div>
                 </div>
               </Link>
               {item.chatRoomId ? (
