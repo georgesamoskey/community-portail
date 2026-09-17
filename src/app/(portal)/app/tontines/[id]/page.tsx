@@ -85,6 +85,13 @@ type AscaOverview = {
   totalShares?: number;
   currency?: string;
   loans?: AscaLoan[];
+  accounts?: Array<{
+    id?: string;
+    userId?: string;
+    balance?: number;
+    shares?: number;
+  }>;
+  settings?: { allowWelfare?: boolean };
 };
 
 export default function TontineDetailPage() {
@@ -154,7 +161,17 @@ export default function TontineDetailPage() {
   const [feePreview, setFeePreview] = useState<unknown>(null);
   const [tab, setTab] = useState<"overview" | "rounds" | "people" | "setup">("rounds");
   const [ascaDepositAmount, setAscaDepositAmount] = useState("");
+  const [ascaDepositMode, setAscaDepositMode] = useState<"cash" | "mm">("cash");
+  const [ascaDepositPhone, setAscaDepositPhone] = useState("");
+  const [ascaDepositProvider, setAscaDepositProvider] = useState("lumicash");
   const [ascaOpenNext, setAscaOpenNext] = useState(true);
+  const [ascaCloseMm, setAscaCloseMm] = useState(false);
+  const [shareOutDest, setShareOutDest] = useState<
+    Record<string, { provider: string; phone: string }>
+  >({});
+  const [welfareUserId, setWelfareUserId] = useState("");
+  const [welfareAmount, setWelfareAmount] = useState("");
+  const [welfareNote, setWelfareNote] = useState("");
 
   useEffect(() => {
     markChecklist("opened_tontine");
@@ -521,9 +538,66 @@ export default function TontineDetailPage() {
                     />
                   </Field>
                 </div>
+                <Field label="Mode">
+                  <select
+                    className={inputClass}
+                    value={ascaDepositMode}
+                    onChange={(e) =>
+                      setAscaDepositMode(e.target.value as "cash" | "mm")
+                    }
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="mm">Mobile Money</option>
+                  </select>
+                </Field>
+                {ascaDepositMode === "mm" && (
+                  <>
+                    <Field label={t("tontines.provider")}>
+                      <input
+                        className={inputClass}
+                        value={ascaDepositProvider}
+                        onChange={(e) => setAscaDepositProvider(e.target.value)}
+                        placeholder="lumicash"
+                      />
+                    </Field>
+                    <Field label={t("common.phone")}>
+                      <input
+                        className={inputClass}
+                        value={ascaDepositPhone}
+                        onChange={(e) => setAscaDepositPhone(e.target.value)}
+                      />
+                    </Field>
+                  </>
+                )}
                 <Btn
-                  disabled={action.busy || Number(ascaDepositAmount) <= 0}
-                  onClick={() =>
+                  disabled={
+                    action.busy ||
+                    Number(ascaDepositAmount) <= 0 ||
+                    (ascaDepositMode === "mm" &&
+                      (!ascaDepositProvider || !ascaDepositPhone))
+                  }
+                  onClick={() => {
+                    if (ascaDepositMode === "mm") {
+                      void action.mutate(
+                        `/tontines/${id}/asca/deposits/mobile-money`,
+                        {
+                          method: "POST",
+                          body: JSON.stringify({
+                            amount: Number(ascaDepositAmount),
+                            provider: ascaDepositProvider,
+                            payerPhone: ascaDepositPhone,
+                          }),
+                        },
+                        {
+                          success: "Dépôt MM initié — validez sur le téléphone",
+                          onDone: () => {
+                            setAscaDepositAmount("");
+                            void asca.refresh();
+                          },
+                        },
+                      );
+                      return;
+                    }
                     void action.mutate(
                       `/tontines/${id}/asca/deposits`,
                       {
@@ -539,45 +613,186 @@ export default function TontineDetailPage() {
                           void asca.refresh();
                         },
                       },
-                    )
-                  }
+                    );
+                  }}
                 >
-                  Déposer
+                  {ascaDepositMode === "mm" ? "Déposer MM" : "Déposer cash"}
                 </Btn>
-                {(ton.myRole === "admin" ||
-                  ton.currentUserMembership?.role === "admin") && (
-                  <>
-                    <label className="flex items-center gap-2 text-xs text-ink-mute">
+              </div>
+
+              {(ton.myRole === "admin" ||
+                ton.currentUserMembership?.role === "admin") &&
+                asca.data?.settings?.allowWelfare !== false && (
+                  <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-ink/[0.06] pt-4">
+                    <p className="w-full text-xs font-semibold text-ink">
+                      Fonds social (welfare)
+                    </p>
+                    <Field label="Bénéficiaire (userId)">
                       <input
-                        type="checkbox"
-                        checked={ascaOpenNext}
-                        onChange={(e) => setAscaOpenNext(e.target.checked)}
+                        className={inputClass}
+                        value={welfareUserId}
+                        onChange={(e) => setWelfareUserId(e.target.value)}
+                        placeholder="uuid membre"
                       />
-                      Ouvrir le cycle suivant
-                    </label>
+                    </Field>
+                    <Field label="Montant">
+                      <input
+                        className={inputClass}
+                        type="number"
+                        min={1}
+                        value={welfareAmount}
+                        onChange={(e) => setWelfareAmount(e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Note">
+                      <input
+                        className={inputClass}
+                        value={welfareNote}
+                        onChange={(e) => setWelfareNote(e.target.value)}
+                      />
+                    </Field>
                     <Btn
-                      variant="secondary"
-                      disabled={action.busy}
-                      onClick={() => {
-                        if (!confirm("Clôturer le cycle ASCA ?")) return;
+                      disabled={
+                        action.busy ||
+                        !welfareUserId ||
+                        Number(welfareAmount) <= 0
+                      }
+                      onClick={() =>
                         void action.mutate(
-                          `/tontines/${id}/asca/close-cycle`,
+                          `/tontines/${id}/asca/welfare`,
                           {
                             method: "POST",
-                            body: JSON.stringify({ openNext: ascaOpenNext }),
+                            body: JSON.stringify({
+                              beneficiaryUserId: welfareUserId,
+                              amount: Number(welfareAmount),
+                              note: welfareNote || undefined,
+                            }),
                           },
                           {
-                            success: "Cycle ASCA clôturé",
-                            onDone: reload,
+                            success: "Aide fonds social versée",
+                            onDone: () => {
+                              setWelfareAmount("");
+                              setWelfareNote("");
+                              void asca.refresh();
+                            },
                           },
-                        );
-                      }}
+                        )
+                      }
                     >
-                      Clôturer le cycle
+                      Verser welfare
                     </Btn>
-                  </>
+                  </div>
                 )}
-              </div>
+
+              {(ton.myRole === "admin" ||
+                ton.currentUserMembership?.role === "admin") && (
+                <div className="mt-4 space-y-3 border-t border-ink/[0.06] pt-4">
+                  <label className="flex items-center gap-2 text-xs text-ink-mute">
+                    <input
+                      type="checkbox"
+                      checked={ascaOpenNext}
+                      onChange={(e) => setAscaOpenNext(e.target.checked)}
+                    />
+                    Ouvrir le cycle suivant
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-ink-mute">
+                    <input
+                      type="checkbox"
+                      checked={ascaCloseMm}
+                      onChange={(e) => setAscaCloseMm(e.target.checked)}
+                    />
+                    Share-out via Mobile Money
+                  </label>
+                  {ascaCloseMm && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-ink-mute">
+                        Destinations MM par membre (parts / solde)
+                      </p>
+                      {(asca.data?.accounts ?? []).map((a) => (
+                        <div
+                          key={a.userId}
+                          className="grid gap-2 sm:grid-cols-3 text-sm"
+                        >
+                          <span className="text-xs text-ink-mute">
+                            {a.userId?.slice(0, 8)}… ·{" "}
+                            {money(
+                              a.balance,
+                              asca.data?.currency ?? ton.currency ?? "BIF",
+                            )}{" "}
+                            · {a.shares ?? 0} parts
+                          </span>
+                          <input
+                            className={inputClass}
+                            placeholder="provider"
+                            value={shareOutDest[a.userId ?? ""]?.provider ?? ""}
+                            onChange={(e) =>
+                              setShareOutDest((prev) => ({
+                                ...prev,
+                                [a.userId ?? ""]: {
+                                  provider: e.target.value,
+                                  phone: prev[a.userId ?? ""]?.phone ?? "",
+                                },
+                              }))
+                            }
+                          />
+                          <input
+                            className={inputClass}
+                            placeholder="+257…"
+                            value={shareOutDest[a.userId ?? ""]?.phone ?? ""}
+                            onChange={(e) =>
+                              setShareOutDest((prev) => ({
+                                ...prev,
+                                [a.userId ?? ""]: {
+                                  provider:
+                                    prev[a.userId ?? ""]?.provider ?? "lumicash",
+                                  phone: e.target.value,
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Btn
+                    variant="secondary"
+                    disabled={action.busy}
+                    onClick={() => {
+                      if (!confirm("Clôturer le cycle ASCA ?")) return;
+                      const destinations = ascaCloseMm
+                        ? Object.entries(shareOutDest)
+                            .filter(([, d]) => d.provider && d.phone)
+                            .map(([userId, d]) => ({
+                              userId,
+                              provider: d.provider,
+                              phone: d.phone,
+                            }))
+                        : undefined;
+                      void action.mutate(
+                        `/tontines/${id}/asca/close-cycle`,
+                        {
+                          method: "POST",
+                          body: JSON.stringify({
+                            openNext: ascaOpenNext,
+                            disbursementMethod: ascaCloseMm
+                              ? "mobile_money"
+                              : "cash",
+                            destinations,
+                          }),
+                        },
+                        {
+                          success: ascaCloseMm
+                            ? "Cycle clôturé — payouts MM créés"
+                            : "Cycle ASCA clôturé",
+                          onDone: reload,
+                        },
+                      );
+                    }}
+                  >
+                    Clôturer le cycle
+                  </Btn>
+                </div>
+              )}
               {(ton.myRole === "admin" ||
                 ton.currentUserMembership?.role === "admin") &&
                 (asca.data?.loans ?? []).some(
