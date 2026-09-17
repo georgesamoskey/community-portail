@@ -140,6 +140,8 @@ export default function TontineDetailPage() {
   const [disburseAscaLoanId, setDisburseAscaLoanId] = useState<string | null>(
     null,
   );
+  const [repayAscaLoanId, setRepayAscaLoanId] = useState<string | null>(null);
+  const [repayAscaAmount, setRepayAscaAmount] = useState("");
   const [disburseMethod, setDisburseMethod] = useState("mobile_money");
   const [disbursePhone, setDisbursePhone] = useState("");
   const [disburseProvider, setDisburseProvider] = useState("");
@@ -637,6 +639,74 @@ export default function TontineDetailPage() {
                             }
                           >
                             Rejeter
+                          </Btn>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              {(asca.data?.loans ?? []).some((l) => {
+                  const st = (l.status ?? "").toLowerCase();
+                  return st === "disbursed" || st === "repaying";
+                }) && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-xs font-semibold text-ink">
+                      Remboursements (capital + intérêts)
+                    </p>
+                    {(asca.data?.loans ?? [])
+                      .filter((l) => {
+                        const st = (l.status ?? "").toLowerCase();
+                        return st === "disbursed" || st === "repaying";
+                      })
+                      .map((loan) => (
+                        <div
+                          key={`repay-${loan.id}`}
+                          className="flex flex-wrap items-center gap-2 text-sm"
+                        >
+                          <span>
+                            {loan.borrowerUserId?.slice(0, 8)}… · dû{" "}
+                            {money(
+                              loan.amountOwed ?? loan.principal,
+                              asca.data?.currency ?? ton.currency ?? "BIF",
+                            )}
+                          </span>
+                          <Btn
+                            variant="secondary"
+                            disabled={action.busy || !loan.id}
+                            onClick={() => {
+                              const amount = Number(
+                                loan.amountOwed ?? loan.principal ?? 0,
+                              );
+                              if (!loan.id || amount <= 0) return;
+                              void action.mutate(
+                                `/tontines/${id}/asca/loans/${loan.id}/repay`,
+                                {
+                                  method: "POST",
+                                  body: JSON.stringify({
+                                    amount,
+                                    method: "cash",
+                                  }),
+                                },
+                                {
+                                  success: "Remboursement cash enregistré",
+                                  onDone: () => void asca.refresh(),
+                                },
+                              );
+                            }}
+                          >
+                            Cash (solde)
+                          </Btn>
+                          <Btn
+                            disabled={action.busy || !loan.id}
+                            onClick={() => {
+                              setRepayAscaLoanId(loan.id ?? null);
+                              setRepayAscaAmount(
+                                String(
+                                  loan.amountOwed ?? loan.principal ?? "",
+                                ),
+                              );
+                            }}
+                          >
+                            Mobile Money
                           </Btn>
                         </div>
                       ))}
@@ -1270,6 +1340,71 @@ export default function TontineDetailPage() {
                   variant="ghost"
                   onClick={() => setDisburseAscaLoanId(null)}
                 >
+                  {t("common.close")}
+                </Btn>
+              </div>
+            </Panel>
+          )}
+
+          {repayAscaLoanId != null && (
+            <Panel title="Remboursement prêt ASCA (Mobile Money)">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Montant">
+                  <input
+                    className={inputClass}
+                    value={repayAscaAmount}
+                    onChange={(e) => setRepayAscaAmount(e.target.value)}
+                    type="number"
+                  />
+                </Field>
+                <Field label={t("tontines.provider")}>
+                  <input
+                    className={inputClass}
+                    value={disburseProvider}
+                    onChange={(e) => setDisburseProvider(e.target.value)}
+                    placeholder="lumicash"
+                  />
+                </Field>
+                <Field label={t("common.phone")}>
+                  <input
+                    className={inputClass}
+                    value={disbursePhone}
+                    onChange={(e) => setDisbursePhone(e.target.value)}
+                  />
+                </Field>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <Btn
+                  disabled={
+                    action.busy ||
+                    !disburseProvider ||
+                    !disbursePhone ||
+                    Number(repayAscaAmount) <= 0
+                  }
+                  onClick={() =>
+                    void action.mutate(
+                      `/tontines/${id}/asca/loans/${repayAscaLoanId}/repay/mobile-money`,
+                      {
+                        method: "POST",
+                        body: JSON.stringify({
+                          amount: Number(repayAscaAmount),
+                          provider: disburseProvider,
+                          payerPhone: disbursePhone,
+                        }),
+                      },
+                      {
+                        success: "Paiement MM initié — validez sur le téléphone",
+                        onDone: () => {
+                          setRepayAscaLoanId(null);
+                          void asca.refresh();
+                        },
+                      },
+                    )
+                  }
+                >
+                  Payer via Mobile Money
+                </Btn>
+                <Btn variant="ghost" onClick={() => setRepayAscaLoanId(null)}>
                   {t("common.close")}
                 </Btn>
               </div>
