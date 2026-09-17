@@ -26,7 +26,16 @@ import { cx } from "@/lib/cx";
 import { useI18n } from "@/lib/i18n/context";
 import { formatDateTime } from "@/lib/ui";
 import { ChatEventCard } from "@/components/chat-event-card";
-import { loadCachedMessages, saveCachedMessages } from "@/lib/chat-cache";
+import {
+  loadCachedMessages,
+  saveCachedMessages,
+  prefetchRoomMedia,
+  pullMeshSync,
+  enqueueChatOutbox,
+  listChatOutbox,
+  removeChatOutbox,
+} from "@/lib/chat-cache";
+import { ChatMediaBubble } from "@/components/chat-media-bubble";
 import { africaShareLinks } from "@/lib/africa-share";
 
 const QUICK_REACTIONS = ["👍", "❤️", "👏", "🔥", "😂"];
@@ -130,7 +139,6 @@ function ChatInner() {
     liveMessages,
     clearLive,
     typing,
-    sendMessage,
     joinRoom,
     emitTyping,
     markAsRead,
@@ -170,6 +178,10 @@ function ChatInner() {
         const ordered = list.slice().reverse();
         setHistory(ordered);
         void saveCachedMessages(selectedId, ordered);
+        void prefetchRoomMedia(
+          ordered.map((m) => ({ ...m, roomId: m.roomId ?? selectedId })),
+        );
+        void pullMeshSync(selectedId, (path) => bffFetch(path));
         const last = list[0] ?? list[list.length - 1];
         if (last?.id) {
           markAsRead(selectedId, last.id);
@@ -213,19 +225,41 @@ function ChatInner() {
 
   const messages = useMemo(() => {
     const byId = new Map<string, ChatMessage>();
-    for (const m of history) if (m.id) byId.set(m.id, m);
-    for (const m of roomLive) if (m.id) byId.set(m.id, m);
+    const byClient = new Map<string, string>();
+    const upsert = (m: ChatMessage) => {
+      if (!m.id) return;
+      const cid = m.clientMessageId;
+      if (cid && byClient.has(cid)) {
+        const prevId = byClient.get(cid)!;
+        // Préférer l’ID serveur (non mesh-*) si les deux existent
+        const preferServer =
+          !String(m.id).startsWith("mesh-") ||
+          String(prevId).startsWith("mesh-");
+        if (preferServer) {
+          byId.delete(prevId);
+          byId.set(m.id, { ...m, pending: false, failed: false });
+          byClient.set(cid, m.id);
+        }
+        return;
+      }
+      byId.set(m.id, m);
+      if (cid) byClient.set(cid, m.id);
+    };
+    for (const m of history) upsert(m);
+    for (const m of roomLive) upsert(m);
     const list = [...byId.values()].sort((a, b) =>
       String(a.createdAt ?? "").localeCompare(String(b.createdAt ?? "")),
     );
-    // Drop optimistic tmp if real message arrived
     return list.filter((m) => {
-      if (!String(m.id).startsWith("tmp-")) return true;
+      if (!String(m.id).startsWith("tmp-") && !String(m.id).startsWith("mesh-"))
+        return true;
+      if (!m.pending && !m.failed) return true;
       return !list.some(
         (o) =>
-          !String(o.id).startsWith("tmp-") &&
-          o.content === m.content &&
-          o.senderId === m.senderId,
+          o.id !== m.id &&
+          (o.clientMessageId === m.clientMessageId ||
+            o.clientMessageId === m.id) &&
+          !o.pending,
       );
     });
   }, [history, roomLive]);
@@ -253,6 +287,84 @@ function ChatInner() {
     );
   }, [rooms, query]);
 
+  const flushOutbox = useCallback(async () => {
+    const pending = await listChatOutbox();
+    for (const item of pending) {
+      try {
+        if (item.kind === "file" && item.fileBase64 && item.fileName) {
+          const { base64ToBlob, putLocalMediaBlob } = await import(
+            "@/lib/chat-cache"
+          );
+          const blob = base64ToBlob(
+            item.fileBase64,
+            item.mimeType || "application/octet-stream",
+          );
+          const fd = new FormData();
+          fd.append(
+            "file",
+            new File([blob], item.fileName, {
+              type: item.mimeType || "application/octet-stream",
+            }),
+          );
+          fd.append("clientMessageId", item.clientMessageId);
+          if (item.content) fd.append("caption", item.content);
+          const { bffApi } = await import("@/lib/bff");
+          const res = await fetch(bffApi(`/chat/rooms/${item.roomId}/file`), {
+            method: "POST",
+            credentials: "include",
+            body: fd,
+          });
+          if (!res.ok) throw new Error(`file ${res.status}`);
+          const created = (await res.json()) as ChatMessage;
+          if (created?.id) {
+            void putLocalMediaBlob(item.roomId, created.id, blob);
+          }
+          await removeChatOutbox(item.clientMessageId);
+          setHistory((prev) => {
+            const without = prev.filter(
+              (m) =>
+                m.id !== item.clientMessageId &&
+                m.clientMessageId !== item.clientMessageId,
+            );
+            return [...without, { ...created, clientMessageId: item.clientMessageId }];
+          });
+          continue;
+        }
+
+        const created = await bffFetch<ChatMessage>(
+          `/chat/rooms/${item.roomId}/messages`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              content: item.content,
+              clientMessageId: item.clientMessageId,
+              replyToId: item.replyToId ?? undefined,
+            }),
+          },
+        );
+        await removeChatOutbox(item.clientMessageId);
+        setHistory((prev) => {
+          const without = prev.filter(
+            (m) =>
+              m.id !== item.clientMessageId &&
+              m.clientMessageId !== item.clientMessageId,
+          );
+          return [...without, created];
+        });
+      } catch {
+        const { bumpOutboxAttempt } = await import("@/lib/chat-cache");
+        await bumpOutboxAttempt(item.clientMessageId);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    void flushOutbox();
+    const onOnline = () => void flushOutbox();
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [flushOutbox]);
+
   const onSend = useCallback(async () => {
     const content = draft.trim();
     if (!content || !selectedId) return;
@@ -260,9 +372,12 @@ function ChatInner() {
     setDraft("");
     emitTyping(selectedId, false);
 
-    const tmpId = `tmp-${Date.now()}`;
+    const clientMessageId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? `mesh-${crypto.randomUUID()}`
+        : `mesh-${Date.now()}`;
     const optimistic: ChatMessage = {
-      id: tmpId,
+      id: clientMessageId,
       roomId: selectedId,
       content,
       type: "text",
@@ -270,36 +385,50 @@ function ChatInner() {
       senderName: myName,
       createdAt: new Date().toISOString(),
       pending: true,
+      clientMessageId,
     };
     setHistory((prev) => [...prev, optimistic]);
 
-    if (connected) {
-      sendMessage(selectedId, content);
-      return;
-    }
+    // REST d’abord (idempotent). Le hub broadcast WS aux *autres* membres.
     try {
       const created = await bffFetch<ChatMessage>(
         `/chat/rooms/${selectedId}/messages`,
-        { method: "POST", body: JSON.stringify({ content }) },
+        {
+          method: "POST",
+          body: JSON.stringify({ content, clientMessageId }),
+        },
       );
-      setHistory((prev) => [
-        ...prev.filter((m) => m.id !== tmpId),
-        created,
-      ]);
+      setHistory((prev) => {
+        const without = prev.filter(
+          (m) =>
+            m.id !== clientMessageId && m.clientMessageId !== clientMessageId,
+        );
+        return [...without, { ...created, clientMessageId }];
+      });
+      void removeChatOutbox(clientMessageId);
     } catch (e) {
+      await enqueueChatOutbox({
+        clientMessageId,
+        roomId: selectedId,
+        kind: "text",
+        content,
+        createdAt: new Date().toISOString(),
+        attempts: 0,
+      });
       setHistory((prev) =>
         prev.map((m) =>
-          m.id === tmpId ? { ...m, pending: false, failed: true } : m,
+          m.id === clientMessageId || m.clientMessageId === clientMessageId
+            ? { ...m, pending: true, failed: !navigator.onLine }
+            : m,
         ),
       );
-      setSendError(e instanceof BffError ? e.message : t("chat.sendFail"));
-      setDraft(content);
+      if (!(e instanceof BffError && e.status >= 500) && navigator.onLine) {
+        setSendError(e instanceof BffError ? e.message : t("chat.sendFail"));
+      }
     }
   }, [
     draft,
     selectedId,
-    connected,
-    sendMessage,
     emitTyping,
     t,
     myId,
@@ -309,9 +438,14 @@ function ChatInner() {
   const onSendFile = async (file: File) => {
     if (!selectedId) return;
     setSendError(null);
+    const clientMessageId =
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? `mesh-${crypto.randomUUID()}`
+        : `mesh-${Date.now()}`;
     try {
       const fd = new FormData();
       fd.append("file", file);
+      fd.append("clientMessageId", clientMessageId);
       const { bffApi } = await import("@/lib/bff");
       const res = await fetch(bffApi(`/chat/rooms/${selectedId}/file`), {
         method: "POST",
@@ -319,23 +453,57 @@ function ChatInner() {
         body: fd,
       });
       if (!res.ok) {
-        const t = await res.text();
-        throw new Error(t || `Erreur ${res.status}`);
+        const errText = await res.text();
+        throw new Error(errText || `Erreur ${res.status}`);
       }
       const created = (await res.json()) as ChatMessage;
-      if (created?.id) setHistory((prev) => [...prev, created]);
-      else {
-        // refresh history
-        const data = await bffFetch<ChatMessage[] | { items?: ChatMessage[] }>(
-          `/chat/rooms/${selectedId}/messages?limit=80`,
-        );
-        const list = Array.isArray(data)
-          ? data
-          : normalizeList<ChatMessage>(data, ["items", "messages", "data"]);
-        setHistory(list.slice().reverse());
+      if (created?.id) {
+        const { putLocalMediaBlob } = await import("@/lib/chat-cache");
+        void putLocalMediaBlob(selectedId, created.id, file);
       }
+      setHistory((prev) => [...prev, { ...created, clientMessageId }]);
+      void pullMeshSync(selectedId, (path) => bffFetch(path));
     } catch (e) {
-      setSendError(e instanceof Error ? e.message : t("chat.fileFail"));
+      try {
+        const { fileToBase64, putLocalMediaBlob, enqueueChatOutbox } =
+          await import("@/lib/chat-cache");
+        const b64 = await fileToBase64(file);
+        await putLocalMediaBlob(selectedId, clientMessageId, file);
+        await enqueueChatOutbox({
+          clientMessageId,
+          roomId: selectedId,
+          kind: "file",
+          content: "",
+          createdAt: new Date().toISOString(),
+          attempts: 0,
+          fileName: file.name,
+          mimeType: file.type || "application/octet-stream",
+          fileBase64: b64,
+        });
+        setHistory((prev) => [
+          ...prev,
+          {
+            id: clientMessageId,
+            roomId: selectedId,
+            content: file.name,
+            type: file.type.startsWith("image/") ? "image" : "file",
+            senderId: myId,
+            senderName: myName,
+            createdAt: new Date().toISOString(),
+            pending: true,
+            clientMessageId,
+            media: {
+              url: null,
+              fileName: file.name,
+              mimeType: file.type,
+              size: file.size,
+              purged: false,
+            },
+          },
+        ]);
+      } catch {
+        setSendError(e instanceof Error ? e.message : t("chat.fileFail"));
+      }
     }
   };
 
@@ -690,6 +858,22 @@ function ChatInner() {
                           {m.replyToPreview.senderName}:{" "}
                           {m.replyToPreview.snippet}
                         </p>
+                      ) : null}
+                      {m.media && selectedId ? (
+                        <ChatMediaBubble
+                          roomId={m.roomId ?? selectedId}
+                          messageId={m.id}
+                          media={m.media}
+                          mine={mine}
+                          onRestored={(updated) => {
+                            const u = updated as typeof m;
+                            if (u?.id) {
+                              setHistory((prev) =>
+                                prev.map((x) => (x.id === u.id ? { ...x, ...u } : x)),
+                              );
+                            }
+                          }}
+                        />
                       ) : null}
                       <p className="whitespace-pre-wrap">{m.content}</p>
                       <p

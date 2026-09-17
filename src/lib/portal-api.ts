@@ -81,10 +81,20 @@ export type ChatMessage = {
   /** Optimistic local send */
   pending?: boolean;
   failed?: boolean;
+  clientMessageId?: string | null;
   poll?: {
     question?: string;
     options?: string[];
     votes?: Record<string, unknown>;
+  } | null;
+  media?: {
+    url?: string | null;
+    fileName?: string | null;
+    mimeType?: string | null;
+    size?: number | null;
+    thumbnail?: string | null;
+    purged?: boolean;
+    purgedAt?: string | null;
   } | null;
 };
 

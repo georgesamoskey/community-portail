@@ -130,9 +130,21 @@ export function useChatSocket(enabled: boolean) {
 
   const clearLive = useCallback(() => setLiveMessages([]), []);
 
-  const sendMessage = useCallback((roomId: string, content: string) => {
-    socketRef.current?.emit("sendMessage", { roomId, content });
-  }, []);
+  const sendMessage = useCallback(
+    (
+      roomId: string,
+      content: string,
+      opts?: { clientMessageId?: string; replyToId?: string },
+    ) => {
+      socketRef.current?.emit("sendMessage", {
+        roomId,
+        content,
+        clientMessageId: opts?.clientMessageId,
+        replyTo: opts?.replyToId,
+      });
+    },
+    [],
+  );
 
   const joinRoom = useCallback((roomId: string) => {
     socketRef.current?.emit("joinRoom", { roomId });
