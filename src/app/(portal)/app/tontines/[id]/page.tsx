@@ -977,7 +977,7 @@ export default function TontineDetailPage() {
                           <Btn
                             disabled={action.busy || !loan.id}
                             onClick={() => {
-                              setDisburseAscaLoanId(loan.id);
+                              setDisburseAscaLoanId(loan.id ?? null);
                               setDisburseMethod("mobile_money");
                             }}
                           >
