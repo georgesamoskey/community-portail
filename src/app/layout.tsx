@@ -29,8 +29,14 @@ const sans = Figtree({
 });
 
 export const metadata: Metadata = {
-  title: "Community — Member portal",
-  description: "Member social space: chats, tontines, pots and payments.",
+  title: "Akiba One — Portail membre",
+  description:
+    "Épargne collective, tontines ASCA, chat et paiements Mobile Money.",
+  openGraph: {
+    title: "Akiba One",
+    description: "Épargne et paiements pour chaque cercle.",
+    images: [{ url: "/og.png" }],
+  },
 };
 
 export default async function RootLayout({

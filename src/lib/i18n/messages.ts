@@ -2,7 +2,7 @@ import type { Locale } from "./config";
 
 export const messages = {
   fr: {
-    brand: "Community",
+    brand: "Akiba One",
     site: {
       features: "Fonctionnalités",
       pricing: "Tarifs",
@@ -100,7 +100,7 @@ export const messages = {
       noRooms: "Pas encore de discussion",
       createTontine: "Créer une tontine",
       createPot: "Créer une cagnotte",
-      heroSub: "Discutez d’abord, gérez ensuite. Community est fait pour que vous reveniez naturellement — pas pour remplir des formulaires.",
+      heroSub: "Discutez d’abord, gérez ensuite. Akiba One est fait pour que vous reveniez naturellement — pas pour remplir des formulaires.",
       streakDays: "{{n}} j de streak",
       streakRisk: "· à risque",
       levelPts: "Niv. {{level}} · {{pts}} pts",
@@ -143,24 +143,24 @@ export const messages = {
       ambassadorDone: "Badge Ambassadeur débloqué",
       socialProof: "Dans la communauté",
       leadersHint: "{{names}} mènent le classement — rejoignez le rythme.",
-      share: "Partager Community",
+      share: "Partager Akiba One",
       copied: "Lien copié",
       copy: "Copier",
       inviteCta: "Mes invitations",
       yourCode: "Ton code parrain — à envoyer sur WhatsApp",
       weekChallenge: "Challenge invitation",
-      dmInvite: "Salut {{name}} ! Rejoins Community avec mon code {{code}}",
-      refTitle: "Tu es invité sur Community",
+      dmInvite: "Salut {{name}} ! Rejoins Akiba One avec mon code {{code}}",
+      refTitle: "Tu es invité sur Akiba One",
       refInvitedBy: "Parrainé par {{name}}",
       refBenefit:
         "À l’inscription : bonus bienvenue + challenge 1ère cotisation.",
       refJoin: "Créer mon compte",
       refLogin: "J’ai déjà un compte",
       refNotFound: "Code parrain introuvable",
-      refShareText: "{{name}} t’invite sur Community — code {{code}}",
+      refShareText: "{{name}} t’invite sur Akiba One — code {{code}}",
       funnel: "Funnel : {{hits}} vues → {{joins}} inscrits ({{pct}}%)",
       shareText:
-        "Je suis niveau {{level}} avec {{streak}} j de streak sur Community — épargne collective en clair. Rejoins-nous : {{url}}",
+        "Je suis niveau {{level}} avec {{streak}} j de streak sur Akiba One — épargne collective en clair. Rejoins-nous : {{url}}",
     },
     support: {
       title: "Aide & litiges",
@@ -175,7 +175,7 @@ export const messages = {
       empty: "Aucun ticket pour l’instant.",
     },
     register: {
-      title: "Créer votre compte Community",
+      title: "Créer votre compte Akiba One",
       subtitle: "Inscription avec vérification SMS, puis accès immédiat au portail.",
       firstName: "Prénom",
       lastName: "Nom",
@@ -230,7 +230,7 @@ export const messages = {
       createAccount: "Créer un compte",
       alreadyMember: "Déjà membre — se connecter",
       hint: "Créez un compte ou connectez-vous pour rejoindre ce groupe.",
-      back: "Retour Community"
+      back: "Retour Akiba One"
     },
     tontines: {
       title: "Mes tontines",
@@ -578,7 +578,7 @@ export const messages = {
       feeRef: "Aperçu frais plateforme (réf. 10 000 BIF)",
       currency: "Devise",
       payerPhone: "Téléphone payeur (E.164)",
-      defaultDesc: "Paiement portail Community",
+      defaultDesc: "Paiement portail Akiba One",
       calc: "Calcul…",
       simFees: "Simuler frais",
       sending: "Envoi…",
@@ -645,7 +645,7 @@ export const messages = {
     }
   },
   en: {
-    brand: "Community",
+    brand: "Akiba One",
     site: {
       features: "Features",
       pricing: "Pricing",
@@ -743,7 +743,7 @@ export const messages = {
       noRooms: "No chats yet",
       createTontine: "Create une tontine",
       createPot: "Create une cagnotte",
-      heroSub: "Chat first, manage next. Community is built so you come back naturally — not to fill forms.",
+      heroSub: "Chat first, manage next. Akiba One is built so you come back naturally — not to fill forms.",
       streakDays: "{{n}} d streak",
       streakRisk: "· at risk",
       levelPts: "Lvl {{level}} · {{pts}} pts",
@@ -786,23 +786,23 @@ export const messages = {
       ambassadorDone: "Ambassador badge unlocked",
       socialProof: "In the community",
       leadersHint: "{{names}} lead the board — keep the rhythm.",
-      share: "Share Community",
+      share: "Share Akiba One",
       copied: "Link copied",
       copy: "Copy",
       inviteCta: "My invites",
       yourCode: "Your referral code — send on WhatsApp",
       weekChallenge: "Invite challenge",
-      dmInvite: "Hi {{name}}! Join Community with my code {{code}}",
-      refTitle: "You’re invited to Community",
+      dmInvite: "Hi {{name}}! Join Akiba One with my code {{code}}",
+      refTitle: "You’re invited to Akiba One",
       refInvitedBy: "Referred by {{name}}",
       refBenefit: "On signup: welcome bonus + first contribution challenge.",
       refJoin: "Create my account",
       refLogin: "I already have an account",
       refNotFound: "Referral code not found",
-      refShareText: "{{name}} invites you to Community — code {{code}}",
+      refShareText: "{{name}} invites you to Akiba One — code {{code}}",
       funnel: "Funnel: {{hits}} views → {{joins}} signups ({{pct}}%)",
       shareText:
-        "I’m level {{level}} with a {{streak}}-day streak on Community — clear collective savings. Join us: {{url}}",
+        "I’m level {{level}} with a {{streak}}-day streak on Akiba One — clear collective savings. Join us: {{url}}",
     },
     support: {
       title: "Help & disputes",
@@ -817,7 +817,7 @@ export const messages = {
       empty: "No tickets yet.",
     },
     register: {
-      title: "Create votre compte Community",
+      title: "Create votre compte Akiba One",
       subtitle: "SMS verification, then instant portal access.",
       firstName: "First name",
       lastName: "Last name",
@@ -872,7 +872,7 @@ export const messages = {
       createAccount: "Create un compte",
       alreadyMember: "Already a member — sign in",
       hint: "Create an account or sign in to join this group.",
-      back: "Back Community"
+      back: "Back Akiba One"
     },
     tontines: {
       title: "My tontines",
@@ -1158,7 +1158,7 @@ export const messages = {
       noData: "No data.",
       days: "{{n}} d",
       protectOk: "Streak protection requested",
-      credit: "Community credit",
+      credit: "Akiba One credit",
       creditScore: "Score",
       feeDiscount: "Fee discount",
       canCreateTontine: "Eligible to create a tontine",
@@ -1219,7 +1219,7 @@ export const messages = {
       feeRef: "Fee preview plateforme (réf. 10 000 BIF)",
       currency: "Currency",
       payerPhone: "Phone payeur (E.164)",
-      defaultDesc: "Community portal payment",
+      defaultDesc: "Akiba One portal payment",
       calc: "Calculating…",
       simFees: "Simulate fees",
       sending: "Sending…",
@@ -1286,7 +1286,7 @@ export const messages = {
     }
   },
   rn: {
-    brand: "Community",
+    brand: "Akiba One",
     site: {
       features: "Ibikorwa",
       pricing: "Ibiciro",
@@ -1383,7 +1383,7 @@ export const messages = {
       noRooms: "No chats yet",
       createTontine: "Create une tontine",
       createPot: "Create une cagnotte",
-      heroSub: "Chat first, manage next. Community is built so you come back naturally — not to fill forms.",
+      heroSub: "Chat first, manage next. Akiba One is built so you come back naturally — not to fill forms.",
       streakDays: "{{n}} d streak",
       streakRisk: "· at risk",
       levelPts: "Lvl {{level}} · {{pts}} pts",
@@ -1426,23 +1426,23 @@ export const messages = {
       ambassadorDone: "Ambassador badge unlocked",
       socialProof: "In the community",
       leadersHint: "{{names}} lead the board — keep the rhythm.",
-      share: "Share Community",
+      share: "Share Akiba One",
       copied: "Link copied",
       copy: "Copy",
       inviteCta: "My invites",
       yourCode: "Your referral code — send on WhatsApp",
       weekChallenge: "Invite challenge",
-      dmInvite: "Hi {{name}}! Join Community with my code {{code}}",
-      refTitle: "You’re invited to Community",
+      dmInvite: "Hi {{name}}! Join Akiba One with my code {{code}}",
+      refTitle: "You’re invited to Akiba One",
       refInvitedBy: "Referred by {{name}}",
       refBenefit: "On signup: welcome bonus + first contribution challenge.",
       refJoin: "Create my account",
       refLogin: "I already have an account",
       refNotFound: "Referral code not found",
-      refShareText: "{{name}} invites you to Community — code {{code}}",
+      refShareText: "{{name}} invites you to Akiba One — code {{code}}",
       funnel: "Funnel: {{hits}} views → {{joins}} signups ({{pct}}%)",
       shareText:
-        "I’m level {{level}} with a {{streak}}-day streak on Community — clear collective savings. Join us: {{url}}",
+        "I’m level {{level}} with a {{streak}}-day streak on Akiba One — clear collective savings. Join us: {{url}}",
     },
     support: {
       title: "Help & disputes",
@@ -1457,7 +1457,7 @@ export const messages = {
       empty: "No tickets yet.",
     },
     register: {
-      title: "Create votre compte Community",
+      title: "Create votre compte Akiba One",
       subtitle: "SMS verification, then instant portal access.",
       firstName: "First name",
       lastName: "Last name",
@@ -1512,7 +1512,7 @@ export const messages = {
       createAccount: "Create un compte",
       alreadyMember: "Already a member — sign in",
       hint: "Create an account or sign in to join this group.",
-      back: "Back Community"
+      back: "Back Akiba One"
     },
     tontines: {
       title: "My tontines",
@@ -1798,7 +1798,7 @@ export const messages = {
       noData: "No data.",
       days: "{{n}} d",
       protectOk: "Streak protection requested",
-      credit: "Community credit",
+      credit: "Akiba One credit",
       creditScore: "Score",
       feeDiscount: "Fee discount",
       canCreateTontine: "Eligible to create a tontine",
@@ -1859,7 +1859,7 @@ export const messages = {
       feeRef: "Fee preview plateforme (réf. 10 000 BIF)",
       currency: "Currency",
       payerPhone: "Phone payeur (E.164)",
-      defaultDesc: "Community portal payment",
+      defaultDesc: "Akiba One portal payment",
       calc: "Calculating…",
       simFees: "Simulate fees",
       sending: "Sending…",
@@ -1926,7 +1926,7 @@ export const messages = {
     }
   },
   sw: {
-    brand: "Community",
+    brand: "Akiba One",
     site: {
       features: "Vipengele",
       pricing: "Bei",
@@ -2023,7 +2023,7 @@ export const messages = {
       noRooms: "No chats yet",
       createTontine: "Create une tontine",
       createPot: "Create une cagnotte",
-      heroSub: "Chat first, manage next. Community is built so you come back naturally — not to fill forms.",
+      heroSub: "Chat first, manage next. Akiba One is built so you come back naturally — not to fill forms.",
       streakDays: "{{n}} d streak",
       streakRisk: "· at risk",
       levelPts: "Lvl {{level}} · {{pts}} pts",
@@ -2066,23 +2066,23 @@ export const messages = {
       ambassadorDone: "Ambassador badge unlocked",
       socialProof: "In the community",
       leadersHint: "{{names}} lead the board — keep the rhythm.",
-      share: "Share Community",
+      share: "Share Akiba One",
       copied: "Link copied",
       copy: "Copy",
       inviteCta: "My invites",
       yourCode: "Your referral code — send on WhatsApp",
       weekChallenge: "Invite challenge",
-      dmInvite: "Hi {{name}}! Join Community with my code {{code}}",
-      refTitle: "You’re invited to Community",
+      dmInvite: "Hi {{name}}! Join Akiba One with my code {{code}}",
+      refTitle: "You’re invited to Akiba One",
       refInvitedBy: "Referred by {{name}}",
       refBenefit: "On signup: welcome bonus + first contribution challenge.",
       refJoin: "Create my account",
       refLogin: "I already have an account",
       refNotFound: "Referral code not found",
-      refShareText: "{{name}} invites you to Community — code {{code}}",
+      refShareText: "{{name}} invites you to Akiba One — code {{code}}",
       funnel: "Funnel: {{hits}} views → {{joins}} signups ({{pct}}%)",
       shareText:
-        "I’m level {{level}} with a {{streak}}-day streak on Community — clear collective savings. Join us: {{url}}",
+        "I’m level {{level}} with a {{streak}}-day streak on Akiba One — clear collective savings. Join us: {{url}}",
     },
     support: {
       title: "Help & disputes",
@@ -2097,7 +2097,7 @@ export const messages = {
       empty: "No tickets yet.",
     },
     register: {
-      title: "Create votre compte Community",
+      title: "Create votre compte Akiba One",
       subtitle: "SMS verification, then instant portal access.",
       firstName: "First name",
       lastName: "Last name",
@@ -2152,7 +2152,7 @@ export const messages = {
       createAccount: "Create un compte",
       alreadyMember: "Already a member — sign in",
       hint: "Create an account or sign in to join this group.",
-      back: "Back Community"
+      back: "Back Akiba One"
     },
     tontines: {
       title: "My tontines",
@@ -2438,7 +2438,7 @@ export const messages = {
       noData: "No data.",
       days: "{{n}} d",
       protectOk: "Streak protection requested",
-      credit: "Community credit",
+      credit: "Akiba One credit",
       creditScore: "Score",
       feeDiscount: "Fee discount",
       canCreateTontine: "Eligible to create a tontine",
@@ -2499,7 +2499,7 @@ export const messages = {
       feeRef: "Fee preview plateforme (réf. 10 000 BIF)",
       currency: "Currency",
       payerPhone: "Phone payeur (E.164)",
-      defaultDesc: "Community portal payment",
+      defaultDesc: "Akiba One portal payment",
       calc: "Calculating…",
       simFees: "Simulate fees",
       sending: "Sending…",

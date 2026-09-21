@@ -29,15 +29,14 @@ export default function HomePage() {
     <div className="relative min-h-screen overflow-hidden">
       <header className="relative z-10 mx-auto flex max-w-5xl items-center justify-between px-4 py-5 sm:px-6">
         <span className="flex items-center gap-2.5 font-display text-xl font-bold tracking-tight text-ink">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lift">
-            <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path
-                d="M7 18.5 4 21V7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v8a2.5 2.5 0 0 1-2.5 2.5H7Z"
-                stroke="currentColor"
-                strokeWidth="1.75"
-              />
-            </svg>
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/icon.png"
+            alt=""
+            width={36}
+            height={36}
+            className="h-9 w-9 rounded-xl shadow-lift"
+          />
           {messages.brand}
         </span>
         <Link

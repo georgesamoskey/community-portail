@@ -113,9 +113,14 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         >
           <div className="flex items-center gap-3">
             <Link href="/app/chat" className="group flex items-center gap-2.5">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lift transition group-hover:scale-105">
-                <IconChat className="h-4.5 w-4.5 h-[18px] w-[18px]" />
-              </span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/icon.png"
+                alt=""
+                width={36}
+                height={36}
+                className="h-9 w-9 rounded-xl shadow-lift transition group-hover:scale-105"
+              />
               <span className="font-display text-lg font-bold tracking-tight text-ink">
                 {messages.brand}
               </span>

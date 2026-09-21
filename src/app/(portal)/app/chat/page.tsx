@@ -1022,7 +1022,7 @@ function ChatInner() {
                   <a
                     href={
                       africaShareLinks(
-                        `Rejoins notre cercle « ${selected?.name ?? "Community"} » sur Community`,
+                        `Rejoins notre cercle « ${selected?.name ?? "Akiba One"} » sur Community`,
                         typeof window !== "undefined"
                           ? `${window.location.origin}/app/chat?room=${selectedId}`
                           : "",
