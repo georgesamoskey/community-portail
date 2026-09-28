@@ -232,6 +232,61 @@ export default function PortalHomePage() {
         </div>
       </section>
 
+      {/* Mes cagnottes — densité Accueil natif */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-xl font-bold tracking-tight text-ink">
+            {t("nav.contributions")}
+          </h2>
+          <Link
+            href="/app/contributions"
+            className="text-sm font-semibold text-brand-600"
+          >
+            {t("common.seeAll")}
+          </Link>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Link
+            href="/app/contributions"
+            className="rounded-2xl border border-ink/[0.06] bg-surface p-4 shadow-soft transition hover:border-brand-200"
+          >
+            <p className="text-2xl font-bold text-ink">{cagnotteCount}</p>
+            <p className="text-xs font-semibold text-ink-mute">
+              {t("pots.tabMine")}
+            </p>
+          </Link>
+          <Link
+            href="/app/tontines"
+            className="rounded-2xl border border-ink/[0.06] bg-surface p-4 shadow-soft transition hover:border-brand-200"
+          >
+            <p className="text-2xl font-bold text-ink">{tontineCount}</p>
+            <p className="text-xs font-semibold text-ink-mute">
+              {t("nav.tontines")}
+            </p>
+          </Link>
+          <Link
+            href="/app/history"
+            className="rounded-2xl border border-mint-100 bg-mint-50/60 p-4 sm:col-span-2"
+          >
+            <p className="text-sm font-bold text-mint-800">
+              {t("nav.history")}
+            </p>
+            <p className="mt-0.5 text-xs text-ink-mute">{t("history.desc")}</p>
+          </Link>
+          <Link
+            href="/app/tontines"
+            className="rounded-2xl border border-brand-100 bg-brand-50/50 p-4 sm:col-span-2"
+          >
+            <p className="text-sm font-bold text-brand-700">
+              {t("home.createTontine")} / {t("home.createPot")}
+            </p>
+            <p className="mt-0.5 text-xs text-ink-mute">
+              {t("home.firstCircleDesc")}
+            </p>
+          </Link>
+        </div>
+      </section>
+
       {/* À faire — une chose claire */}
       <section className="space-y-3">
         <h2 className="font-display text-xl font-bold tracking-tight text-ink">

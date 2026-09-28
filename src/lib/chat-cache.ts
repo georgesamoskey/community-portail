@@ -317,7 +317,7 @@ export async function cacheChatMedia(
     const res = await fetch(fetchUrl, { credentials: "include" });
     if (!res.ok) return null;
     const blob = await res.blob();
-    await cache.put(key, new Response(blob.clone(), { headers: res.headers }));
+    await cache.put(key, new Response(blob, { headers: res.headers }));
     void gcMediaCache();
     return URL.createObjectURL(blob);
   } catch {

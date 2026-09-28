@@ -11,6 +11,11 @@ import { useBff } from "@/lib/use-bff";
 import { initialsFrom } from "@/lib/portal-api";
 import { useI18n } from "@/lib/i18n/context";
 import { LocaleSwitcher } from "@/components/locale-switcher";
+import {
+  OfflineBanner,
+  PwaInstallPrompt,
+  SyncStatusChip,
+} from "@/components/offline-ui";
 
 function IconChat({ className }: { className?: string }) {
   return (
@@ -58,8 +63,10 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   ];
 
   const MORE_NAV = [
+    { href: "/app/tontines", label: t("nav.tontines") },
     { href: "/app/invitations", label: t("nav.invitations") },
     { href: "/app/engagement", label: t("nav.engagement") },
+    { href: "/app/referral", label: t("nav.referral") },
     { href: "/app/support", label: t("nav.support") },
     { href: "/app/reports", label: t("nav.reports") },
     { href: "/app/notifications", label: t("nav.notifications") },
@@ -71,9 +78,10 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
     { href: "/app/profile", label: t("nav.profile") },
   ];
 
+  // ISO mobile : Accueil | Historique | Chat | Cagnottes | Profil (Tontines dans Plus)
   const MOBILE_DOCK = [
     { href: "/app", label: t("nav.home") },
-    { href: "/app/tontines", label: t("nav.tontines") },
+    { href: "/app/history", label: t("nav.history") },
     { href: "/app/chat", label: t("nav.chat"), hub: true as const },
     { href: "/app/contributions", label: t("nav.contributions") },
     { href: "/app/profile", label: t("nav.profile") },
@@ -138,6 +146,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             </Link>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            <SyncStatusChip />
             <Link
               href="/app/notifications"
               className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-ink/[0.08] bg-surface text-ink-soft transition hover:border-brand-300 hover:text-brand-600"
@@ -267,6 +276,8 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         </nav>
       </header>
 
+      <OfflineBanner />
+
       <main
         className={cx(
           "portal-page mx-auto",
@@ -277,6 +288,8 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       >
         {children}
       </main>
+
+      <PwaInstallPrompt />
 
       <nav
         className="fixed inset-x-0 bottom-0 z-50 border-t border-ink/[0.06] bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"

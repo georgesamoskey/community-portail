@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useBff } from "@/lib/use-bff";
 import { useAction } from "@/lib/use-action";
-import { bffFetch } from "@/lib/bff-fetch";
+import { bffFetch, BffError } from "@/lib/bff-fetch";
 import { normalizeList } from "@/lib/portal-api";
-import { hasPermission, Permission } from "@/lib/portal-permissions";
 import {
   Alert,
   Badge,
@@ -24,7 +23,9 @@ import {
 } from "@/lib/ui";
 import { markChecklist } from "@/lib/retention";
 import { useI18n } from "@/lib/i18n/context";
+import { useOffline } from "@/lib/offline/context";
 import { LiveActivityList, type LiveActivityItem } from "@/components/live-activity-list";
+import { LocalDataHint } from "@/components/offline-ui";
 
 type Contribution = {
   id?: string;
@@ -82,9 +83,13 @@ function ContributionDetailInner() {
   const search = useSearchParams();
   const id = String(params.id ?? "");
   const highlightCotisation = search.get("cotisation");
+  const declareOnLaunch =
+    search.get("declare") === "1" || search.get("declare") === "true";
   const { data: session } = useSession();
-  const canPay = hasPermission(session?.user?.roles, Permission.PORTAL_PAYMENTS);
+  /** ISO natif : tout membre connecté peut payer MM (pas de dead-end role). */
+  const canPay = Boolean(session?.user);
   const action = useAction();
+  const offline = useOffline();
 
   const detail = useBff<Contribution>(id ? `/contributions/${id}` : null);
   const cotisations = useBff<unknown>(
@@ -158,8 +163,13 @@ function ContributionDetailInner() {
     atts?: unknown;
   } | null>(null);
   const [tab, setTab] = useState<"overview" | "pay" | "money" | "people" | "more">(
-    highlightCotisation ? "money" : "pay",
+    highlightCotisation && !declareOnLaunch ? "money" : "pay",
   );
+
+  useEffect(() => {
+    if (declareOnLaunch) setTab("pay");
+    else if (highlightCotisation) setTab("money");
+  }, [declareOnLaunch, highlightCotisation]);
 
   const defaultPayoutReason = t("pots.defaultPayout");
   const effectivePayoutReason = payoutReason || defaultPayoutReason;
@@ -173,29 +183,42 @@ function ContributionDetailInner() {
   };
 
   const declareCotisation = () =>
-    void action.mutate(
-      "/cotisations",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          contributionId: id,
-          montant: Number(montant),
-          paymentMethod,
-          notes: notes || undefined,
-        }),
-      },
-      {
-        success: t("pots.okDeclared"),
-        onDone: () => {
+    void action.run(async () => {
+      const body = {
+        contributionId: id,
+        montant: Number(montant),
+        paymentMethod,
+        notes: notes || undefined,
+      };
+      try {
+        if (!offline.online) {
+          await offline.enqueueCotisation(body);
           markChecklist("paid_or_cotised");
-          reload();
-        },
-      },
-    );
+          return { queued: true };
+        }
+        await bffFetch("/cotisations", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+        markChecklist("paid_or_cotised");
+        reload();
+        return { queued: false };
+      } catch (e) {
+        if (e instanceof BffError && (e.status === 0 || e.code === "NETWORK_ERROR")) {
+          await offline.enqueueCotisation(body);
+          markChecklist("paid_or_cotised");
+          return { queued: true };
+        }
+        throw e;
+      }
+    }, {
+      success: (r) =>
+        r?.queued ? t("pwa.queuedOk") : t("pots.okDeclared"),
+    });
 
   const payMm = async () => {
     let uid = payerUserId;
-    if (!uid) {
+    if (!uid && offline.online) {
       try {
         const me = await bffFetch<{ id?: string }>("/users/me");
         uid = me?.id ?? "";
@@ -204,26 +227,49 @@ function ContributionDetailInner() {
         /* ignore */
       }
     }
-    void action.mutate(
-      `/contributions/${id}/mobile-money/pay`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          payerUserId: uid,
-          amount: Number(mmAmount),
+    void action.run(async () => {
+      const mmPayload = {
+        contributionId: id,
+        montant: Number(mmAmount),
+        paymentMethod: "mobile_money",
+        notes: notes || undefined,
+        mobileMoney: {
           provider: mmProvider,
           payerPhone: mmPhone,
-          notes: notes || undefined,
-        }),
-      },
-      {
-        success: t("pots.okMm"),
-        onDone: () => {
-          markChecklist("paid_or_cotised");
-          reload();
+          amount: Number(mmAmount),
         },
-      },
-    );
+      };
+      try {
+        if (!offline.online) {
+          await offline.enqueueCotisation(mmPayload);
+          markChecklist("paid_or_cotised");
+          return { queued: true };
+        }
+        await bffFetch(`/contributions/${id}/mobile-money/pay`, {
+          method: "POST",
+          body: JSON.stringify({
+            payerUserId: uid,
+            amount: Number(mmAmount),
+            provider: mmProvider,
+            payerPhone: mmPhone,
+            notes: notes || undefined,
+          }),
+        });
+        markChecklist("paid_or_cotised");
+        reload();
+        return { queued: false };
+      } catch (e) {
+        if (e instanceof BffError && (e.status === 0 || e.code === "NETWORK_ERROR")) {
+          await offline.enqueueCotisation(mmPayload);
+          markChecklist("paid_or_cotised");
+          return { queued: true };
+        }
+        throw e;
+      }
+    }, {
+      success: (r) =>
+        r?.queued ? t("pwa.queuedMm") : t("pots.okMm"),
+    });
   };
 
   const lifecycle = (actionName: "activate" | "close" | "reopen" | "archive") =>
@@ -544,6 +590,7 @@ function ContributionDetailInner() {
 
   return (
     <div className="space-y-6">
+      <LocalDataHint show={detail.fromCache || cotisations.fromCache} />
       <PageHeader
         title={c?.title ?? t("pots.detailFallback")}
         description={

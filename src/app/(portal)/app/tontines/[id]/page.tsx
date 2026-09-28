@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useBff } from "@/lib/use-bff";
 import { useAction } from "@/lib/use-action";
 import { normalizeList } from "@/lib/portal-api";
-import { hasPermission, Permission } from "@/lib/portal-permissions";
 import {
   Alert,
   Badge,
@@ -23,6 +22,7 @@ import {
 } from "@/lib/ui";
 import { markChecklist } from "@/lib/retention";
 import { useI18n } from "@/lib/i18n/context";
+import { LocalDataHint } from "@/components/offline-ui";
 
 type Member = {
   id?: string;
@@ -98,8 +98,11 @@ export default function TontineDetailPage() {
   const params = useParams();
   const id = String(params.id ?? "");
   const router = useRouter();
+  const search = useSearchParams();
+  const openPayOnLaunch =
+    search.get("openPay") === "1" || search.get("openPay") === "true";
   const { data: session } = useSession();
-  const canPay = hasPermission(session?.user?.roles, Permission.PORTAL_PAYMENTS);
+  const canPay = Boolean(session?.user);
   const action = useAction();
   const { t } = useI18n();
 
@@ -176,6 +179,22 @@ export default function TontineDetailPage() {
   useEffect(() => {
     markChecklist("opened_tontine");
   }, []);
+
+  useEffect(() => {
+    if (!openPayOnLaunch || payRound != null) return;
+    const list = normalizeList<Round>(rounds.data, ["items", "rounds", "data"]);
+    const open = list.find((r) => String(r.status).toLowerCase() === "open");
+    const idx =
+      open?.index ??
+      ton?.rounds?.find((r) => String(r.status).toLowerCase() === "open")?.index ??
+      list[0]?.index ??
+      ton?.rounds?.[0]?.index ??
+      1;
+    if (idx != null) {
+      setPayRound(Number(idx));
+      setTab("rounds");
+    }
+  }, [openPayOnLaunch, payRound, rounds.data, ton?.rounds]);
 
   useEffect(() => {
     if (payRound != null || disburseRound != null || roundIndexView != null) {
@@ -436,6 +455,7 @@ export default function TontineDetailPage() {
 
   return (
     <div className="space-y-6">
+      <LocalDataHint show={detail.fromCache || rounds.fromCache} />
       <PageHeader
         title={ton?.title ?? ton?.name ?? t("tontines.detailFallback")}
         description={ton?.description ?? t("tontines.detailDesc")}

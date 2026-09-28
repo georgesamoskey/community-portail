@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { cookies, headers } from "next/headers";
 import { Figtree, Sora } from "next/font/google";
 import "./globals.css";
@@ -28,10 +28,35 @@ const sans = Figtree({
   weight: ["400", "500", "600", "700"],
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+  themeColor: "#ff5c35",
+};
+
 export const metadata: Metadata = {
   title: "Akiba One — Portail membre",
   description:
     "Épargne collective, tontines ASCA, chat et paiements Mobile Money.",
+  applicationName: "Akiba One",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Akiba One",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
+  icons: {
+    icon: [{ url: "/icon.png", sizes: "512x512", type: "image/png" }],
+    apple: [{ url: "/icon.png", sizes: "180x180", type: "image/png" }],
+  },
   openGraph: {
     title: "Akiba One",
     description: "Épargne et paiements pour chaque cercle.",

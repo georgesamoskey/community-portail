@@ -15,8 +15,20 @@ import {
   PageHeader,
   Panel,
 } from "@/lib/ui";
+import {
+  SessionLockSettings,
+  WebPushSettings,
+} from "@/components/security-gates";
+import Link from "next/link";
 
 type Profile = Record<string, unknown>;
+
+type NotifChannels = {
+  email?: boolean;
+  sms?: boolean;
+  push?: boolean;
+  inApp?: boolean;
+};
 
 const PROFILE_PATHS = ["/users/me", "/users/profile", "/auth/me"];
 
@@ -41,16 +53,33 @@ export default function ProfilePage() {
   const [bio, setBio] = useState("");
   const [location, setLocation] = useState("");
   const [phoneCode, setPhoneCode] = useState("");
-  const [prefsJson, setPrefsJson] = useState("");
-  const [notifJson, setNotifJson] = useState("");
+  const [channels, setChannels] = useState<NotifChannels>({
+    email: true,
+    push: true,
+    inApp: true,
+    sms: false,
+  });
+  const [dnd, setDnd] = useState(false);
+  const [digestDaily, setDigestDaily] = useState(false);
+  const [digestWeekly, setDigestWeekly] = useState(false);
 
   useEffect(() => {
-    if (prefs.data) setPrefsJson(JSON.stringify(prefs.data, null, 2));
-  }, [prefs.data]);
-
-  useEffect(() => {
-    if (notifSettings.data)
-      setNotifJson(JSON.stringify(notifSettings.data, null, 2));
+    const data = notifSettings.data;
+    if (!data) return;
+    const ch = (data.channelPreferences ?? {}) as NotifChannels;
+    setChannels({
+      email: ch.email !== false,
+      sms: Boolean(ch.sms),
+      push: ch.push !== false,
+      inApp: ch.inApp !== false,
+    });
+    setDnd(Boolean(data.doNotDisturb));
+    const dig = (data.digestPreferences ?? {}) as {
+      daily?: boolean;
+      weekly?: boolean;
+    };
+    setDigestDaily(Boolean(dig.daily));
+    setDigestWeekly(Boolean(dig.weekly));
   }, [notifSettings.data]);
 
   const loadProfile = async () => {
@@ -114,39 +143,38 @@ export default function ProfilePage() {
     );
 
   const savePrefs = () => {
-    try {
-      const body = JSON.parse(prefsJson) as Record<string, unknown>;
-      void action.mutate(
-        "/users/preferences",
-        { method: "PUT", body: JSON.stringify(body) },
-        {
-          success: t("profile.prefsSaved"),
-          onDone: () => void prefs.refresh(),
-        },
-      );
-    } catch {
-      void action.run(async () => {
-        throw new Error(t("profile.badPrefsJson"));
-      });
-    }
+    void action.mutate(
+      "/users/preferences",
+      {
+        method: "PUT",
+        body: JSON.stringify(prefs.data ?? {}),
+      },
+      {
+        success: t("profile.prefsSaved"),
+        onDone: () => void prefs.refresh(),
+      },
+    );
   };
 
   const saveNotif = () => {
-    try {
-      const body = JSON.parse(notifJson) as Record<string, unknown>;
-      void action.mutate(
-        "/notifications/settings",
-        { method: "PUT", body: JSON.stringify(body) },
-        {
-          success: t("profile.notifSaved"),
-          onDone: () => void notifSettings.refresh(),
-        },
-      );
-    } catch {
-      void action.run(async () => {
-        throw new Error(t("profile.badNotifJson"));
-      });
-    }
+    void action.mutate(
+      "/notifications/settings",
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          channelPreferences: channels,
+          doNotDisturb: dnd,
+          digestPreferences: {
+            daily: digestDaily,
+            weekly: digestWeekly,
+          },
+        }),
+      },
+      {
+        success: t("profile.notifSaved"),
+        onDone: () => void notifSettings.refresh(),
+      },
+    );
   };
 
   const sendPhoneOtp = () =>
@@ -311,62 +339,103 @@ export default function ProfilePage() {
         </Panel>
       )}
 
-      <Panel title={t("profile.prefs")}>
-        {prefs.loading && (
-          <p className="text-sm text-brand-600">{t("common.loading")}</p>
-        )}
-        {prefs.error && <Alert>{prefs.error}</Alert>}
-        {prefsJson && (
-          <>
-            <textarea
-              className={`${inputClass} font-mono text-xs`}
-              rows={8}
-              value={prefsJson}
-              onChange={(e) => setPrefsJson(e.target.value)}
-            />
-            <Btn className="mt-3" onClick={savePrefs}>
-              {t("profile.savePrefs")}
-            </Btn>
-          </>
-        )}
-      </Panel>
-
       <Panel title={t("profile.notifSettings")}>
         {notifSettings.loading && (
           <p className="text-sm text-brand-600">{t("common.loading")}</p>
         )}
         {notifSettings.error && <Alert>{notifSettings.error}</Alert>}
-        {notifJson && (
-          <>
-            <textarea
-              className={`${inputClass} font-mono text-xs`}
-              rows={8}
-              value={notifJson}
-              onChange={(e) => setNotifJson(e.target.value)}
+        <div className="grid gap-3 sm:grid-cols-2">
+          {(
+            [
+              ["email", t("common.email")],
+              ["push", "Push"],
+              ["inApp", t("nav.notifications")],
+              ["sms", "SMS"],
+            ] as const
+          ).map(([key, label]) => (
+            <label
+              key={key}
+              className="flex items-center justify-between rounded-xl border border-ink/[0.06] px-3 py-2.5 text-sm font-semibold"
+            >
+              {label}
+              <input
+                type="checkbox"
+                checked={Boolean(channels[key])}
+                onChange={(e) =>
+                  setChannels((c) => ({ ...c, [key]: e.target.checked }))
+                }
+              />
+            </label>
+          ))}
+          <label className="flex items-center justify-between rounded-xl border border-ink/[0.06] px-3 py-2.5 text-sm font-semibold sm:col-span-2">
+            {t("profile.dnd")}
+            <input
+              type="checkbox"
+              checked={dnd}
+              onChange={(e) => setDnd(e.target.checked)}
             />
-            <Btn className="mt-3" onClick={saveNotif}>
-              {t("profile.saveNotif")}
-            </Btn>
-          </>
-        )}
+          </label>
+          <label className="flex items-center justify-between rounded-xl border border-ink/[0.06] px-3 py-2.5 text-sm font-semibold">
+            {t("profile.digestDaily")}
+            <input
+              type="checkbox"
+              checked={digestDaily}
+              onChange={(e) => setDigestDaily(e.target.checked)}
+            />
+          </label>
+          <label className="flex items-center justify-between rounded-xl border border-ink/[0.06] px-3 py-2.5 text-sm font-semibold">
+            {t("profile.digestWeekly")}
+            <input
+              type="checkbox"
+              checked={digestWeekly}
+              onChange={(e) => setDigestWeekly(e.target.checked)}
+            />
+          </label>
+        </div>
+        <Btn className="mt-4" onClick={saveNotif}>
+          {t("profile.saveNotif")}
+        </Btn>
       </Panel>
 
-      <Panel title="KYC (identité)">
+      <Panel title={t("security.pushTitle")}>
+        <WebPushSettings />
+      </Panel>
+
+      <Panel title={t("security.lockTitle")}>
+        <SessionLockSettings />
+      </Panel>
+
+      <Panel title={t("profile.prefs")}>
+        {prefs.loading && (
+          <p className="text-sm text-brand-600">{t("common.loading")}</p>
+        )}
+        {prefs.error && <Alert>{prefs.error}</Alert>}
+        {prefs.data ? (
+          <div className="space-y-2 text-sm text-ink-mute">
+            <p>{t("profile.prefsHint")}</p>
+            <Btn variant="secondary" onClick={savePrefs}>
+              {t("profile.savePrefs")}
+            </Btn>
+          </div>
+        ) : null}
+      </Panel>
+
+      <Panel title={t("profile.kycTitle")}>
         <p className="mb-2 text-sm text-ink-mute">
-          Requis pour les gros décaissements. Statut :{" "}
+          {t("profile.kycHint")}{" "}
           <strong>{String(profile?.kycStatus ?? "none")}</strong>
         </p>
         {String(profile?.kycStatus ?? "none") !== "verified" &&
           String(profile?.kycStatus ?? "none") !== "pending" && (
           <div className="space-y-2">
-            <Field label="Nom complet (pièce)">
+            <Field label={t("profile.kycFullName")}>
               <input
                 className={inputClass}
                 id="kyc-full-name"
                 defaultValue={`${firstName} ${lastName}`.trim()}
               />
             </Field>
-            <Field label="N° pièce d’identité">
+            <Field label={t("profile.kycId")}>
               <input className={inputClass} id="kyc-id-number" />
             </Field>
             <Btn
@@ -387,12 +456,12 @@ export default function ProfilePage() {
                 })
               }
             >
-              Soumettre KYC
+              {t("profile.kycSubmit")}
             </Btn>
           </div>
         )}
         {String(profile?.kycStatus) === "pending" ? (
-          <Alert tone="amber">Dossier en revue par l’équipe.</Alert>
+          <Alert tone="amber">{t("profile.kycPending")}</Alert>
         ) : null}
       </Panel>
 
@@ -406,9 +475,33 @@ export default function ProfilePage() {
           </p>
         )}
         {engagement.data && (
-          <pre className="max-h-56 overflow-auto rounded-xl bg-brand-50 p-3 text-xs">
-            {JSON.stringify(engagement.data, null, 2)}
-          </pre>
+          <div className="flex flex-wrap gap-3 text-sm">
+            <span className="rounded-xl bg-mint-50 px-3 py-1.5 font-semibold text-mint-800">
+              {t("home.levelPts", {
+                level: String(
+                  (engagement.data as { level?: number }).level ?? "—",
+                ),
+                pts: String(
+                  (engagement.data as { totalPoints?: number }).totalPoints ??
+                    "—",
+                ),
+              })}
+            </span>
+            <span className="rounded-xl bg-brand-50 px-3 py-1.5 font-semibold text-brand-800">
+              {t("home.streakDays", {
+                n: String(
+                  (engagement.data as { currentStreak?: number })
+                    .currentStreak ?? 0,
+                ),
+              })}
+            </span>
+            <Link
+              href="/app/referral"
+              className="text-sm font-semibold text-brand-600"
+            >
+              {t("nav.referral")} →
+            </Link>
+          </div>
         )}
       </Panel>
     </div>
