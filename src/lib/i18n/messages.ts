@@ -83,11 +83,15 @@ export const messages = {
       password: "Mot de passe",
       signIn: "Se connecter",
       signInKeycloak: "Continuer avec Keycloak",
-      createAccount: "Créer un compte sur le site",
+      createAccount: "Créer un compte",
       forgotPassword: "Mot de passe oublié",
       registeredOk: "Compte créé. Connectez-vous ci-dessous.",
       invalidCredentials: "Identifiants invalides",
-      keycloakMissing: "Keycloak non configuré — la connexion téléphone reste disponible."
+      keycloakMissing:
+        "Keycloak non configuré — la connexion téléphone reste disponible.",
+      sameAccount: "Même compte que l’app Android & iOS Akiba One.",
+      showPwd: "Voir",
+      hidePwd: "Cacher",
     },
     home: {
       greeting: "Bonjour",
@@ -188,7 +192,11 @@ export const messages = {
       otpCode: "Code OTP",
       create: "Valider et créer mon compte",
       accountCreated: "Compte créé",
-      openPortal: "Ouvrir le portail"
+      openPortal: "Ouvrir le portail",
+      referralOptional: "Code parrain (optionnel)",
+      otpSentTo: "Code envoyé au {{phone}}",
+      resendOtp: "Renvoyer OTP",
+      devCode: "Code DEV",
     },
     forgot: {
       title: "Mot de passe oublié",
@@ -784,11 +792,14 @@ export const messages = {
       password: "Password",
       signIn: "Sign in",
       signInKeycloak: "Continue with Keycloak",
-      createAccount: "Create un compte sur le site",
-      forgotPassword: "Password oublié",
+      createAccount: "Create account",
+      forgotPassword: "Forgot password",
       registeredOk: "Account created. Sign in below.",
       invalidCredentials: "Invalid credentials",
-      keycloakMissing: "Keycloak not configured — phone sign-in remains available."
+      keycloakMissing: "Keycloak not configured — phone login remains available.",
+      sameAccount: "Same account as the Android & iOS Akiba One apps.",
+      showPwd: "Show",
+      hidePwd: "Hide",
     },
     home: {
       greeting: "Hello",
@@ -888,7 +899,11 @@ export const messages = {
       otpCode: "OTP code",
       create: "Verify and create account",
       accountCreated: "Account created",
-      openPortal: "Open le portail"
+      openPortal: "Open le portail",
+      referralOptional: "Referral code (optional)",
+      otpSentTo: "Code sent to {{phone}}",
+      resendOtp: "Resend OTP",
+      devCode: "DEV code"
     },
     forgot: {
       title: "Password oublié",
@@ -1480,11 +1495,14 @@ export const messages = {
       password: "Ijambo ry’ibanga",
       signIn: "Injira",
       signInKeycloak: "Continue with Keycloak",
-      createAccount: "Create un compte sur le site",
-      forgotPassword: "Password oublié",
+      createAccount: "Create account",
+      forgotPassword: "Forgot password",
       registeredOk: "Account created. Sign in below.",
       invalidCredentials: "Invalid credentials",
-      keycloakMissing: "Keycloak not configured — phone sign-in remains available."
+      keycloakMissing: "Keycloak not configured — phone login remains available.",
+      sameAccount: "Same account as the Android & iOS Akiba One apps.",
+      showPwd: "Show",
+      hidePwd: "Hide",
     },
     home: {
       greeting: "Bite",
@@ -1584,7 +1602,11 @@ export const messages = {
       otpCode: "OTP code",
       create: "Verify and create account",
       accountCreated: "Account created",
-      openPortal: "Open le portail"
+      openPortal: "Open le portail",
+      referralOptional: "Referral code (optional)",
+      otpSentTo: "Code sent to {{phone}}",
+      resendOtp: "Resend OTP",
+      devCode: "DEV code"
     },
     forgot: {
       title: "Password oublié",
@@ -2176,11 +2198,14 @@ export const messages = {
       password: "Nenosiri",
       signIn: "Ingia",
       signInKeycloak: "Continue with Keycloak",
-      createAccount: "Create un compte sur le site",
-      forgotPassword: "Password oublié",
+      createAccount: "Create account",
+      forgotPassword: "Forgot password",
       registeredOk: "Account created. Sign in below.",
       invalidCredentials: "Invalid credentials",
-      keycloakMissing: "Keycloak not configured — phone sign-in remains available."
+      keycloakMissing: "Keycloak not configured — phone login remains available.",
+      sameAccount: "Same account as the Android & iOS Akiba One apps.",
+      showPwd: "Show",
+      hidePwd: "Hide",
     },
     home: {
       greeting: "Habari",
@@ -2280,7 +2305,11 @@ export const messages = {
       otpCode: "OTP code",
       create: "Verify and create account",
       accountCreated: "Account created",
-      openPortal: "Open le portail"
+      openPortal: "Open le portail",
+      referralOptional: "Referral code (optional)",
+      otpSentTo: "Code sent to {{phone}}",
+      resendOtp: "Resend OTP",
+      devCode: "DEV code"
     },
     forgot: {
       title: "Password oublié",

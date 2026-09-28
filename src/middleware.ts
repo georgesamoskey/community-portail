@@ -14,6 +14,8 @@ export default auth((req) => {
   if (
     pathname === "/" ||
     pathname.startsWith("/login") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/invite") ||
     pathname.startsWith("/r/") ||
@@ -51,6 +53,8 @@ export const config = {
     "/app/:path*",
     "/onboarding",
     "/login",
+    "/register",
+    "/forgot-password",
     "/auth/:path*",
     "/c/:path*",
     "/t/:path*",

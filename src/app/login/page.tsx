@@ -5,10 +5,8 @@ import { LoginForm } from "./login-form";
 export default function LoginPage() {
   const configured = isKeycloakConfigured();
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4">
-      <Suspense fallback={<p className="text-sm text-ink-mute">…</p>}>
-        <LoginForm configured={configured} />
-      </Suspense>
-    </div>
+    <Suspense fallback={<p className="p-8 text-center text-sm text-ink-mute">…</p>}>
+      <LoginForm configured={configured} />
+    </Suspense>
   );
 }

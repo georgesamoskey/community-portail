@@ -46,12 +46,14 @@ export default function ReferralLandingPage() {
     };
   }, [code, t]);
 
-  const registerUrl =
-    preview?.registerUrl ||
-    `${process.env.NEXT_PUBLIC_CMS_URL || "http://localhost:3004"}/register?ref=${encodeURIComponent(code)}`;
+  const registerUrl = `/register?ref=${encodeURIComponent(code)}`;
+  const absoluteRegister =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${registerUrl}`
+      : registerUrl;
   const share = africaShareLinks(
     t("viral.refShareText", { code, name: preview?.inviterLabel ?? "" }),
-    registerUrl,
+    absoluteRegister,
   );
 
   return (
