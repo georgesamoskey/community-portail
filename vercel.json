@@ -15,5 +15,107 @@
         { "key": "Content-Type", "value": "application/manifest+json" }
       ]
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/realms/:path*",
+      "destination": "http://172.238.237.76:8099/realms/:path*"
+    },
+    {
+      "source": "/resources/:path*",
+      "destination": "http://172.238.237.76:8099/resources/:path*"
+    },
+    {
+      "source": "/socket.io",
+      "destination": "http://172.238.237.76:3000/socket.io"
+    },
+    {
+      "source": "/socket.io/:path*",
+      "destination": "http://172.238.237.76:3000/socket.io/:path*"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "http://172.238.237.76:3000/uploads/:path*"
+    },
+    {
+      "source": "/admin",
+      "destination": "http://172.238.237.76:3001/admin"
+    },
+    {
+      "source": "/admin/:path*",
+      "destination": "http://172.238.237.76:3001/admin/:path*"
+    },
+    {
+      "source": "/api/auth/login",
+      "destination": "http://172.238.237.76:3000/api/auth/login"
+    },
+    {
+      "source": "/api/auth/register",
+      "destination": "http://172.238.237.76:3000/api/auth/register"
+    },
+    {
+      "source": "/api/auth/otp/:path*",
+      "destination": "http://172.238.237.76:3000/api/auth/otp/:path*"
+    },
+    {
+      "source": "/api/auth/password/:path*",
+      "destination": "http://172.238.237.76:3000/api/auth/password/:path*"
+    },
+    {
+      "source": "/api/auth/ticket/:path*",
+      "destination": "http://172.238.237.76:3000/api/auth/ticket/:path*"
+    },
+    {
+      "source": "/api/mobile-money/:path*",
+      "destination": "http://172.238.237.76:3000/api/mobile-money/:path*"
+    },
+    {
+      "source": "/api/health",
+      "destination": "http://172.238.237.76:3000/api/health"
+    },
+    {
+      "source": "/api/docs",
+      "destination": "http://172.238.237.76:3000/api/docs"
+    },
+    {
+      "source": "/api/docs/:path*",
+      "destination": "http://172.238.237.76:3000/api/docs/:path*"
+    },
+    {
+      "source": "/api/users/:path*",
+      "destination": "http://172.238.237.76:3000/api/users/:path*"
+    },
+    {
+      "source": "/api/tontines/:path*",
+      "destination": "http://172.238.237.76:3000/api/tontines/:path*"
+    },
+    {
+      "source": "/api/contributions/:path*",
+      "destination": "http://172.238.237.76:3000/api/contributions/:path*"
+    },
+    {
+      "source": "/api/cotisations/:path*",
+      "destination": "http://172.238.237.76:3000/api/cotisations/:path*"
+    },
+    {
+      "source": "/api/chat/:path*",
+      "destination": "http://172.238.237.76:3000/api/chat/:path*"
+    },
+    {
+      "source": "/api/notifications/:path*",
+      "destination": "http://172.238.237.76:3000/api/notifications/:path*"
+    },
+    {
+      "source": "/api/invitations/:path*",
+      "destination": "http://172.238.237.76:3000/api/invitations/:path*"
+    },
+    {
+      "source": "/api/engagement/:path*",
+      "destination": "http://172.238.237.76:3000/api/engagement/:path*"
+    },
+    {
+      "source": "/api/payouts/:path*",
+      "destination": "http://172.238.237.76:3000/api/payouts/:path*"
+    }
   ]
 }
