@@ -57,7 +57,7 @@ export default function ReferralLandingPage() {
   );
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-brand-800 to-mint-800 px-4 py-12 text-white">
+    <div className="flex min-h-screen flex-col items-center justify-center mobile-trust-gradient px-4 py-12 text-white">
       <div className="w-full max-w-md rounded-2.5xl border border-white/15 bg-white/10 p-8 shadow-lift backdrop-blur">
         <p className="text-center text-[11px] font-bold uppercase tracking-wider text-white/70">
           Community

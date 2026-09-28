@@ -19,6 +19,7 @@ import {
   Panel,
   statusTone,
 } from "@/lib/ui";
+import { TabFab } from "@/components/mobile-iso";
 
 type TontineItem = {
   id?: string;
@@ -96,7 +97,26 @@ export default function TontinesPage() {
     );
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6 pb-20">
+      <div className="mobile-trust-gradient rounded-2xl p-4 text-white shadow-lift md:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="font-display text-xl font-bold">{t("tontines.title")}</h1>
+            <p className="mt-0.5 text-xs text-white/75">{t("tontines.desc")}</p>
+          </div>
+          <Btn
+            variant="secondary"
+            className="!border-white/30 !bg-white/15 !text-white"
+            onClick={() => {
+              setShowJoin(true);
+              setShowCreate(false);
+            }}
+          >
+            {t("tontines.join")}
+          </Btn>
+        </div>
+      </div>
+      <div className="hidden md:block">
       <PageHeader
         title={t("tontines.title")}
         description={t("tontines.desc")}
@@ -125,6 +145,7 @@ export default function TontinesPage() {
           </>
         }
       />
+      </div>
 
       {(action.error || action.success) && (
         <Alert tone={action.error ? "rose" : "teal"}>
@@ -297,6 +318,13 @@ export default function TontinesPage() {
           ))}
         </ul>
       )}
+      <TabFab
+        label={t("home.createShort")}
+        onClick={() => {
+          setShowCreate(true);
+          setShowJoin(false);
+        }}
+      />
     </div>
   );
 }

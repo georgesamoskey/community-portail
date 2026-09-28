@@ -3,20 +3,20 @@
 @tailwind utilities;
 
 :root {
-  --background: #f7f4f1;
-  --foreground: #12151c;
+  --background: #f4f8fc;
+  --foreground: #0d1f33;
   --surface: #ffffff;
-  --surface-raised: #fffcfa;
-  --surface-sunken: #efeae5;
-  --accent: #ff5c35;
-  --accent-deep: #ef3d18;
-  --accent-soft: #ffe8e0;
-  --mint: #1f9786;
-  --mint-soft: #d5f3ee;
-  --ink-mute: #6b7385;
-  --line: rgba(18, 21, 28, 0.08);
-  --glow-coral: rgba(255, 92, 53, 0.18);
-  --glow-mint: rgba(31, 151, 134, 0.14);
+  --surface-raised: #fafcfe;
+  --surface-sunken: #e3edf8;
+  --accent: #337ab7;
+  --accent-deep: #1a5276;
+  --accent-soft: #d6eaf8;
+  --mint: #0e9aa7;
+  --mint-soft: #c5eef1;
+  --ink-mute: #546e8a;
+  --line: rgba(13, 31, 51, 0.08);
+  --glow-brand: rgba(51, 122, 183, 0.16);
+  --glow-teal: rgba(14, 154, 167, 0.12);
 }
 
 html {
@@ -27,10 +27,9 @@ body {
   color: var(--foreground);
   background-color: var(--background);
   background-image:
-    radial-gradient(900px 520px at 8% -8%, var(--glow-coral), transparent 55%),
-    radial-gradient(700px 420px at 92% 4%, var(--glow-mint), transparent 50%),
-    radial-gradient(600px 400px at 50% 100%, rgba(255, 200, 160, 0.2), transparent 55%),
-    linear-gradient(165deg, #faf7f4 0%, #f3f0ec 45%, #eef6f4 100%);
+    radial-gradient(900px 520px at 8% -8%, var(--glow-brand), transparent 55%),
+    radial-gradient(700px 420px at 92% 4%, var(--glow-teal), transparent 50%),
+    linear-gradient(165deg, #f4f8fc 0%, #eef4fa 45%, #e8f4f5 100%);
   background-attachment: fixed;
   min-height: 100vh;
   font-feature-settings: "ss01" on, "cv11" on;
@@ -38,10 +37,8 @@ body {
 
 ::selection {
   background: var(--accent-soft);
-  color: #862616;
+  color: #0d3b6b;
 }
-
-/* ——— Motion ——— */
 
 @keyframes portal-enter {
   from {
@@ -132,24 +129,27 @@ body {
 
 .chat-shell {
   animation: social-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
-  box-shadow: var(--shadow-chat, 0 20px 50px rgba(18, 21, 28, 0.08));
+  box-shadow: var(--shadow-chat, 0 20px 50px rgba(10, 31, 61, 0.08));
 }
 
-/* Mesh subtil derrière le chat */
 .chat-thread-bg {
-  background-color: #faf8f6;
+  background-color: #f4f8fc;
   background-image:
-    radial-gradient(circle at 20% 20%, rgba(255, 92, 53, 0.06), transparent 40%),
-    radial-gradient(circle at 80% 80%, rgba(31, 151, 134, 0.07), transparent 42%),
-    linear-gradient(180deg, #fff9f6 0%, #f7f5f2 100%);
+    radial-gradient(circle at 20% 20%, rgba(51, 122, 183, 0.06), transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(14, 154, 167, 0.07), transparent 42%),
+    linear-gradient(180deg, #fafcfe 0%, #f4f8fc 100%);
 }
 
 .online-dot {
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
-/* Typo display utilitaire */
 .text-display {
   font-family: var(--font-portal-display), ui-sans-serif, system-ui, sans-serif;
   letter-spacing: -0.03em;
+}
+
+/* Gradient splash / header ISO mobile (Navy → Trust Blue → Teal) */
+.mobile-trust-gradient {
+  background: linear-gradient(135deg, #1a3a5c 0%, #337ab7 52%, #0e9aa7 100%);
 }

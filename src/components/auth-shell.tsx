@@ -4,7 +4,7 @@ import Link from "next/link";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { useI18n } from "@/lib/i18n/context";
 
-/** Shell mobile-first plein écran — parité splash/login natif. */
+/** Shell auth ISO Android LoginScreen : gradient plein + carte blanche. */
 export function AuthShell({
   children,
   footer,
@@ -14,32 +14,36 @@ export function AuthShell({
 }) {
   const { messages } = useI18n();
   return (
-    <div className="relative flex min-h-dvh flex-col bg-background">
+    <div className="relative flex min-h-dvh flex-col">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_520px_at_8%_-8%,rgba(255,92,53,0.18),transparent_55%),radial-gradient(700px_420px_at_92%_4%,rgba(31,151,134,0.14),transparent_50%)]"
+        className="pointer-events-none absolute inset-0 mobile-trust-gradient"
       />
       <header className="relative z-10 flex items-center justify-between px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6">
-        <Link href="/" className="flex items-center gap-2.5">
+        <Link href="/" className="flex items-center gap-2.5 text-white">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/icon.png"
             alt=""
-            width={36}
-            height={36}
-            className="h-9 w-9 rounded-xl shadow-lift"
+            width={40}
+            height={40}
+            className="h-10 w-10 rounded-full bg-white/15 p-1 shadow-lift ring-2 ring-white/30"
           />
-          <span className="font-display text-lg font-bold tracking-tight text-ink">
+          <span className="font-display text-lg font-bold tracking-tight">
             {messages.brand}
           </span>
         </Link>
-        <LocaleSwitcher compact />
+        <div className="rounded-xl bg-white/15 px-1 py-0.5 backdrop-blur">
+          <LocaleSwitcher compact />
+        </div>
       </header>
-      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 pb-8 pt-4 sm:px-6">
-        {children}
+      <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 pb-8 pt-2 sm:px-6">
+        <div className="rounded-[1.75rem] border border-white/20 bg-surface p-5 shadow-lift sm:p-6">
+          {children}
+        </div>
       </main>
       {footer ? (
-        <footer className="relative z-10 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-center text-xs text-ink-mute">
+        <footer className="relative z-10 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-center text-xs text-white/70">
           {footer}
         </footer>
       ) : null}
@@ -70,3 +74,34 @@ export const authBtnClass =
 
 export const authBtnSecondaryClass =
   "inline-flex w-full items-center justify-center rounded-xl border border-ink/[0.1] bg-surface px-5 py-3 text-sm font-semibold text-ink transition hover:bg-ink/[0.03]";
+
+export function AuthModeChips({
+  mode,
+  onChange,
+  passwordLabel,
+  otpLabel,
+}: {
+  mode: "password" | "otp";
+  onChange: (m: "password" | "otp") => void;
+  passwordLabel: string;
+  otpLabel: string;
+}) {
+  return (
+    <div className="mb-4 flex gap-2 rounded-xl bg-surface-sunken p-1">
+      {(["password", "otp"] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => onChange(m)}
+          className={
+            mode === m
+              ? "flex-1 rounded-lg bg-brand-500 px-3 py-2 text-xs font-bold text-white shadow-soft"
+              : "flex-1 rounded-lg px-3 py-2 text-xs font-bold text-ink-mute"
+          }
+        >
+          {m === "password" ? passwordLabel : otpLabel}
+        </button>
+      ))}
+    </div>
+  );
+}

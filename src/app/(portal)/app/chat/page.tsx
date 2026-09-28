@@ -555,13 +555,28 @@ function ChatInner() {
   };
 
   return (
-    <div className="chat-shell flex h-[calc(100dvh-7.5rem)] flex-col overflow-hidden border-ink/[0.06] bg-surface md:h-[calc(100dvh-8.5rem)] md:rounded-2.5xl md:border md:shadow-chat">
-      <div className="flex items-center justify-between gap-3 border-b border-ink/[0.06] px-4 py-3.5 md:px-5">
+    <div className="chat-shell flex h-[calc(100dvh-4.75rem)] flex-col overflow-hidden border-ink/[0.06] bg-surface md:h-[calc(100dvh-8.5rem)] md:rounded-2.5xl md:border md:shadow-chat">
+      <div
+        className={cx(
+          "flex items-center justify-between gap-3 border-b border-ink/[0.06] px-4 py-3.5 md:px-5",
+          !mobileShowThread && "mobile-trust-gradient border-transparent text-white md:bg-none md:!text-ink",
+        )}
+      >
         <div>
-          <h1 className="font-display text-xl font-bold tracking-tight text-ink md:text-2xl">
+          <h1
+            className={cx(
+              "font-display text-xl font-bold tracking-tight md:text-2xl",
+              mobileShowThread ? "text-ink" : "text-white md:text-ink",
+            )}
+          >
             {t("chat.title")}
           </h1>
-          <p className="mt-0.5 text-xs text-ink-mute">
+          <p
+            className={cx(
+              "mt-0.5 text-xs",
+              mobileShowThread ? "text-ink-mute" : "text-white/75 md:text-ink-mute",
+            )}
+          >
             {t("chat.subtitle")}
             {(unread.data?.count ?? 0) > 0
               ? ` ${t("chat.unread", { n: unread.data!.count ?? 0 })}`

@@ -1,29 +1,38 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useI18n } from "@/lib/i18n/context";
 import {
-  checklistProgress,
-  loadChecklist,
-  markChecklist,
   markFullscreenOnboardingSeen,
-  ONBOARDING_STEPS,
-  type OnboardingKey,
 } from "@/lib/retention";
 import { Btn } from "@/lib/ui";
 import { cx } from "@/lib/cx";
 
+const SLIDES = [
+  {
+    key: "community",
+    titleKey: "onboarding.slide1Title" as const,
+    bodyKey: "onboarding.slide1Body" as const,
+  },
+  {
+    key: "save",
+    titleKey: "onboarding.slide2Title" as const,
+    bodyKey: "onboarding.slide2Body" as const,
+  },
+  {
+    key: "pay",
+    titleKey: "onboarding.slide3Title" as const,
+    bodyKey: "onboarding.slide3Body" as const,
+  },
+];
+
 export default function OnboardingPage() {
   const { t } = useI18n();
   const router = useRouter();
-  const [checklist, setChecklist] = useState(loadChecklist);
-  const progress = checklistProgress(checklist);
-
-  useEffect(() => {
-    setChecklist(loadChecklist());
-  }, []);
+  const [index, setIndex] = useState(0);
+  const last = index >= SLIDES.length - 1;
+  const slide = SLIDES[index]!;
 
   const finish = () => {
     markFullscreenOnboardingSeen();
@@ -31,63 +40,56 @@ export default function OnboardingPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-[80vh] max-w-lg flex-col justify-center px-4 py-10">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/icon.png"
-        alt=""
-        className="mx-auto mb-6 h-16 w-16 rounded-2xl shadow-lift"
-      />
-      <h1 className="text-center font-display text-3xl font-bold tracking-tight text-ink">
-        {t("onboarding.title")}
-      </h1>
-      <p className="mt-2 text-center text-sm text-ink-mute">
-        {t("onboarding.subtitle", { done: progress.done, total: progress.total })}
-      </p>
-
-      <ul className="mt-8 space-y-3">
-        {ONBOARDING_STEPS.map((step) => {
-          const done = checklist[step.key as OnboardingKey];
-          return (
-            <li key={step.key}>
-              <Link
-                href={step.href}
-                onClick={() => {
-                  markFullscreenOnboardingSeen();
-                  if (step.key === "joined_chat") markChecklist("joined_chat");
-                }}
-                className={cx(
-                  "flex items-center justify-between rounded-2xl border px-4 py-3.5 transition",
-                  done
-                    ? "border-mint-200 bg-mint-50 text-mint-800"
-                    : "border-ink/[0.08] bg-surface hover:border-brand-200",
-                )}
-              >
-                <span className="text-sm font-semibold">
-                  {t(`home.${step.titleKey}`)}
-                </span>
-                <span className="text-xs font-bold uppercase tracking-wide opacity-70">
-                  {done ? t("common.done") : t("common.go")}
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-
-      <div className="mt-10 flex flex-col gap-2">
-        <Btn onClick={finish} className="w-full justify-center">
-          {progress.pct >= 100
-            ? t("onboarding.enter")
-            : t("onboarding.skip")}
-        </Btn>
-        <Link
-          href="/app/chat"
-          onClick={() => markFullscreenOnboardingSeen()}
-          className="text-center text-sm font-semibold text-brand-600"
+    <main className="relative flex min-h-dvh flex-col">
+      <div aria-hidden className="pointer-events-none absolute inset-0 mobile-trust-gradient" />
+      <div className="relative z-10 flex flex-1 flex-col px-5 pb-8 pt-[max(1.5rem,env(safe-area-inset-top))]">
+        <button
+          type="button"
+          onClick={finish}
+          className="self-end text-sm font-semibold text-white/80"
         >
-          {t("home.openChat")}
-        </Link>
+          {t("onboarding.skip")}
+        </button>
+
+        <div className="flex flex-1 flex-col items-center justify-center text-center text-white">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/icon.png"
+            alt=""
+            className="mb-8 h-20 w-20 rounded-full bg-white/15 p-2 shadow-lift ring-2 ring-white/30"
+          />
+          <h1 className="max-w-sm font-display text-3xl font-bold tracking-tight">
+            {t(slide.titleKey)}
+          </h1>
+          <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/80">
+            {t(slide.bodyKey)}
+          </p>
+        </div>
+
+        <div className="flex justify-center gap-2 py-6">
+          {SLIDES.map((s, i) => (
+            <button
+              key={s.key}
+              type="button"
+              aria-label={s.key}
+              onClick={() => setIndex(i)}
+              className={cx(
+                "h-2 rounded-full transition-all",
+                i === index ? "w-6 bg-white" : "w-2 bg-white/40",
+              )}
+            />
+          ))}
+        </div>
+
+        <Btn
+          className="w-full !bg-white !text-brand-700 hover:!bg-white/95"
+          onClick={() => {
+            if (last) finish();
+            else setIndex((i) => i + 1);
+          }}
+        >
+          {last ? t("onboarding.start") : t("common.next")}
+        </Btn>
       </div>
     </main>
   );

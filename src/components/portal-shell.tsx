@@ -17,6 +17,19 @@ import {
   SyncStatusChip,
 } from "@/components/offline-ui";
 
+function IconHome({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function IconChat({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -36,6 +49,64 @@ function IconChat({ className }: { className?: string }) {
   );
 }
 
+function IconHistory({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 8v5l3 2"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3.5 12a8.5 8.5 0 1 0 2.2-5.7L3.5 8.5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconGroups({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.75" />
+      <circle cx="17" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        d="M3.5 18.5c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+      <path
+        d="M14 14c1.8 0 3.4.7 4.5 2.5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function IconPerson({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="8" r="3.25" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        d="M5 19.5c1.2-3.4 3.8-5 7-5s5.8 1.6 7 5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+type DockIcon = (props: { className?: string }) => React.ReactNode;
+
 export function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -54,16 +125,17 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const chatUnread = unreadChat.data?.count ?? 0;
   const isChat = pathname.startsWith("/app/chat");
 
+  // Desktop : même ordre métier qu’Android + Plus
   const PRIMARY_NAV = [
-    { href: "/app/chat", label: t("nav.chat"), primary: true as const },
     { href: "/app", label: t("nav.home") },
-    { href: "/app/discover", label: t("nav.discover") },
+    { href: "/app/chat", label: t("nav.messages") },
+    { href: "/app/history", label: t("nav.history") },
     { href: "/app/tontines", label: t("nav.tontines") },
     { href: "/app/contributions", label: t("nav.contributions") },
   ];
 
   const MORE_NAV = [
-    { href: "/app/tontines", label: t("nav.tontines") },
+    { href: "/app/discover", label: t("nav.discover") },
     { href: "/app/invitations", label: t("nav.invitations") },
     { href: "/app/engagement", label: t("nav.engagement") },
     { href: "/app/referral", label: t("nav.referral") },
@@ -78,15 +150,18 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
     { href: "/app/profile", label: t("nav.profile") },
   ];
 
-  // ISO mobile : Accueil | Historique | Chat | Cagnottes | Profil (Tontines dans Plus)
-  const MOBILE_DOCK = [
-    { href: "/app", label: t("nav.home") },
-    { href: "/app/history", label: t("nav.history") },
-    { href: "/app/chat", label: t("nav.chat"), hub: true as const },
-    { href: "/app/contributions", label: t("nav.contributions") },
-    { href: "/app/profile", label: t("nav.profile") },
+  // ISO Android : Accueil | Messages | Historique | Tontines | Profil
+  const MOBILE_DOCK: Array<{
+    href: string;
+    label: string;
+    Icon: DockIcon;
+  }> = [
+    { href: "/app", label: t("nav.home"), Icon: IconHome },
+    { href: "/app/chat", label: t("nav.messages"), Icon: IconChat },
+    { href: "/app/history", label: t("nav.history"), Icon: IconHistory },
+    { href: "/app/tontines", label: t("nav.tontines"), Icon: IconGroups },
+    { href: "/app/profile", label: t("nav.profile"), Icon: IconPerson },
   ];
-
 
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
@@ -112,39 +187,27 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen text-ink">
-      <header className="sticky top-0 z-40 border-b border-ink/[0.06] bg-surface/80 backdrop-blur-xl">
+      {/* Desktop chrome. Mobile = plein écran ISO Android (hero dans chaque onglet). */}
+      <header className="sticky top-0 z-40 hidden border-b border-ink/[0.06] bg-surface/90 backdrop-blur-xl md:block">
         <div
           className={cx(
-            "mx-auto flex items-center justify-between gap-4 px-4 py-3.5 sm:px-6",
+            "mx-auto flex items-center justify-between gap-4 px-4 py-3 sm:px-6",
             isChat ? "max-w-7xl" : "max-w-6xl",
           )}
         >
-          <div className="flex items-center gap-3">
-            <Link href="/app/chat" className="group flex items-center gap-2.5">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/icon.png"
-                alt=""
-                width={36}
-                height={36}
-                className="h-9 w-9 rounded-xl shadow-lift transition group-hover:scale-105"
-              />
-              <span className="font-display text-lg font-bold tracking-tight text-ink">
-                {messages.brand}
-              </span>
-            </Link>
-            <Link
-              href="/app/chat"
-              className="relative hidden items-center gap-2 rounded-xl bg-brand-500 px-3.5 py-1.5 text-xs font-bold text-white shadow-lift transition hover:bg-brand-600 sm:inline-flex"
-            >
-              {t("nav.chat")}
-              {chatUnread > 0 ? (
-                <span className="inline-flex min-w-[1.15rem] items-center justify-center rounded-md bg-ink/20 px-1 text-[10px] leading-4">
-                  {chatUnread > 99 ? "99+" : chatUnread}
-                </span>
-              ) : null}
-            </Link>
-          </div>
+          <Link href="/app" className="group flex items-center gap-2.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/icon.png"
+              alt=""
+              width={36}
+              height={36}
+              className="h-9 w-9 rounded-xl shadow-lift transition group-hover:scale-105"
+            />
+            <span className="font-display text-lg font-bold tracking-tight text-ink">
+              {messages.brand}
+            </span>
+          </Link>
           <div className="flex items-center gap-2 sm:gap-3">
             <SyncStatusChip />
             <Link
@@ -177,7 +240,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
               href="/app/profile"
               className="hidden items-center gap-2.5 rounded-xl border border-ink/[0.08] bg-surface py-1 pl-1 pr-3 transition hover:border-brand-200 sm:flex"
             >
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-mint-500 to-mint-700 text-[11px] font-bold text-white">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-[11px] font-bold text-white">
                 {initials || "M"}
               </span>
               <span className="max-w-[10rem] truncate text-sm font-medium text-ink">
@@ -190,13 +253,12 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         </div>
         <nav
           className={cx(
-            "mx-auto hidden items-center gap-1 overflow-x-auto px-4 pb-3 md:flex sm:px-6",
+            "mx-auto flex items-center gap-1 overflow-x-auto px-4 pb-3 sm:px-6",
             isChat ? "max-w-7xl" : "max-w-6xl",
           )}
         >
           {PRIMARY_NAV.map((item) => {
             const active = isActive(item.href);
-            const isPrimary = "primary" in item && item.primary;
             return (
               <Link
                 key={item.href}
@@ -205,12 +267,8 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
                 className={cx(
                   "relative inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-semibold transition",
                   active
-                    ? isPrimary
-                      ? "bg-brand-500 text-white shadow-lift"
-                      : "bg-ink text-white"
-                    : isPrimary
-                      ? "bg-brand-50 text-brand-700 hover:bg-brand-100"
-                      : "text-ink-soft hover:bg-ink/[0.04] hover:text-ink",
+                    ? "bg-brand-500 text-white shadow-lift"
+                    : "text-ink-soft hover:bg-ink/[0.04] hover:text-ink",
                 )}
               >
                 {item.label}
@@ -283,7 +341,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           "portal-page mx-auto",
           isChat
             ? "max-w-7xl px-0 pb-24 pt-0 md:px-4 md:pb-6 md:pt-4"
-            : "max-w-6xl px-4 py-8 pb-28 sm:px-6 md:pb-10",
+            : "max-w-6xl px-4 py-6 pb-28 sm:px-6 md:pb-10",
         )}
       >
         {children}
@@ -295,44 +353,30 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         className="fixed inset-x-0 bottom-0 z-50 border-t border-ink/[0.06] bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
         aria-label={t("nav.mainNav")}
       >
-        <ul className="mx-auto flex max-w-lg items-end justify-between px-1 pt-1">
+        <ul className="mx-auto flex max-w-lg items-stretch justify-between px-1 pt-1">
           {MOBILE_DOCK.map((item) => {
             const active = isActive(item.href);
-            const hub = "hub" in item && item.hub;
+            const { Icon } = item;
             return (
               <li key={item.href} className="flex-1">
                 <Link
                   href={item.href}
                   className={cx(
-                    "relative flex flex-col items-center gap-0.5 px-1 py-1.5 text-[10px] font-semibold tracking-wide transition",
+                    "relative flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] font-semibold tracking-wide transition",
                     active ? "text-brand-600" : "text-ink-mute",
                   )}
                 >
                   <span
                     className={cx(
-                      "inline-flex items-center justify-center transition",
-                      hub
-                        ? cx(
-                            "-mt-6 h-14 w-14 rounded-2xl shadow-lift",
-                            active
-                              ? "bg-brand-500 text-white ring-4 ring-brand-100"
-                              : "bg-gradient-to-br from-brand-500 to-brand-700 text-white",
-                          )
-                        : "h-8 w-8 rounded-xl",
-                      !hub && active && "bg-brand-50",
+                      "inline-flex h-8 w-8 items-center justify-center rounded-xl transition",
+                      active && "bg-brand-50",
                     )}
                   >
-                    {hub ? (
-                      <IconChat className="h-6 w-6" />
-                    ) : (
-                      <span className="text-[11px] font-bold uppercase tracking-wider">
-                        {item.label.slice(0, 1)}
-                      </span>
-                    )}
+                    <Icon className="h-5 w-5" />
                   </span>
-                  <span>{item.label}</span>
+                  <span className="truncate">{item.label}</span>
                   {item.href === "/app/chat" && chatUnread > 0 ? (
-                    <span className="absolute right-[22%] top-0 inline-flex min-w-[1rem] items-center justify-center rounded-md bg-brand-500 px-1 text-[9px] font-bold leading-3 text-white">
+                    <span className="absolute right-[18%] top-1 inline-flex min-w-[1rem] items-center justify-center rounded-md bg-brand-500 px-1 text-[9px] font-bold leading-3 text-white">
                       {chatUnread > 9 ? "9+" : chatUnread}
                     </span>
                   ) : null}

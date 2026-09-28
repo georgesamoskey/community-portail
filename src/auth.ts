@@ -243,6 +243,63 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         } satisfies TokenUser;
       },
     }),
+    Credentials({
+      id: "otp",
+      name: "OTP",
+      credentials: {
+        phone: { label: "Téléphone", type: "text" },
+        code: { label: "OTP", type: "text" },
+        requestId: { label: "Request", type: "text" },
+        country: { label: "Pays", type: "text" },
+      },
+      async authorize(credentials) {
+        const phone = String(credentials?.phone ?? "").trim();
+        const code = String(credentials?.code ?? "").trim();
+        const requestId = String(credentials?.requestId ?? "").trim();
+        const country = String(credentials?.country ?? "BI").trim();
+        if (!phone || !code || !requestId) return null;
+        const res = await fetch(`${apiOrigin()}/api/auth/otp/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone,
+            code,
+            requestId,
+            country,
+          }),
+        });
+        const data = (await res.json()) as {
+          accessToken?: string;
+          refreshToken?: string;
+          expiresIn?: number;
+          user?: {
+            id?: string;
+            phone?: string;
+            email?: string;
+            firstName?: string;
+            lastName?: string;
+          };
+        };
+        if (!res.ok || !data.accessToken) return null;
+        const roles = rolesFromAccessToken(data.accessToken);
+        const label =
+          [data.user?.firstName, data.user?.lastName].filter(Boolean).join(" ") ||
+          data.user?.phone ||
+          phone;
+        return {
+          id: data.user?.id || phone,
+          name: label,
+          email: data.user?.email ?? null,
+          preferred_username: data.user?.phone || phone,
+          accessToken: data.accessToken,
+          refreshToken: data.refreshToken,
+          expiresAt:
+            Date.now() +
+            (typeof data.expiresIn === "number" ? data.expiresIn : 300) * 1000,
+          roles,
+        } satisfies TokenUser;
+      },
+    }),
   ],
   callbacks: {
     async redirect({ url, baseUrl }) {

@@ -80,13 +80,16 @@ export function Panel({
   title,
   children,
   className,
+  id,
 }: {
   title?: string;
   children: React.ReactNode;
   className?: string;
+  id?: string;
 }) {
   return (
     <section
+      id={id}
       className={cx(
         "rounded-2.5xl border border-ink/[0.06] bg-surface p-5 shadow-soft",
         className,

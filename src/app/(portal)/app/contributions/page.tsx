@@ -1,12 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { useI18n } from "@/lib/i18n/context";
-import { useBff } from "@/lib/use-bff";
-import { useAction } from "@/lib/use-action";
-import { normalizeList } from "@/lib/portal-api";
 import {
   Alert,
   Badge,
@@ -19,6 +12,15 @@ import {
   Panel,
   statusTone,
 } from "@/lib/ui";
+import { TabFab } from "@/components/mobile-iso";
+import { useEffect } from "react";
+import { useI18n } from "@/lib/i18n/context";
+import { useBff } from "@/lib/use-bff";
+import { useAction } from "@/lib/use-action";
+import { normalizeList } from "@/lib/portal-api";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 type Row = {
   id?: string;
@@ -35,6 +37,18 @@ type Row = {
 
 type Tab = "cotisations" | "cagnottes" | "public";
 
+function flattenMyContributions(data: unknown): Row[] {
+  if (!data || typeof data !== "object") return [];
+  const raw = data as Record<string, unknown>;
+  if (Array.isArray(raw.created) || Array.isArray(raw.participated)) {
+    return [
+      ...((raw.created as Row[]) ?? []),
+      ...((raw.participated as Row[]) ?? []),
+    ];
+  }
+  return normalizeList<Row>(data, ["items", "cotisations", "contributions", "data"]);
+}
+
 export default function ContributionsPage() {
   const { t } = useI18n();
   const router = useRouter();
@@ -46,20 +60,30 @@ export default function ContributionsPage() {
   const [isPublic, setIsPublic] = useState(false);
 
   const cotisations = useBff<unknown>("/cotisations/my-cotisations?limit=50");
-  const cagnottes = useBff<unknown>("/contributions/my-contributions?limit=50");
+  const cagnottes = useBff<unknown>("/contributions/my-contributions");
   const pub = useBff<unknown>(
     tab === "public" ? "/contributions/public?limit=30" : null,
   );
   const action = useAction();
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#create") {
+      setShowCreate(true);
+      setTab("cagnottes");
+    }
+  }, []);
+
   const active =
     tab === "cotisations" ? cotisations : tab === "public" ? pub : cagnottes;
-  const items = normalizeList<Row>(active.data, [
-    "items",
-    "cotisations",
-    "contributions",
-    "data",
-  ]);
+  const items =
+    tab === "cagnottes"
+      ? flattenMyContributions(cagnottes.data)
+      : normalizeList<Row>(active.data, [
+          "items",
+          "cotisations",
+          "contributions",
+          "data",
+        ]);
 
   const create = () =>
     void action.mutate<{ id?: string }>(
@@ -120,7 +144,7 @@ export default function ContributionsPage() {
       )}
 
       {showCreate && (
-        <Panel title={t("pots.createPanel")}>
+        <Panel title={t("pots.createPanel")} className="scroll-mt-4" id="create">
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={t("common.title")}>
               <input
@@ -246,6 +270,13 @@ export default function ContributionsPage() {
           })}
         </ul>
       )}
+      <TabFab
+        label={t("home.createShort")}
+        onClick={() => {
+          setShowCreate(true);
+          setTab("cagnottes");
+        }}
+      />
     </div>
   );
 }

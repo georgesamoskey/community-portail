@@ -16,6 +16,7 @@ export const messages = {
     nav: {
       home: "Accueil",
       chat: "Discussions",
+      messages: "Messages",
       discover: "Découvrir",
       tontines: "Tontines",
       contributions: "Cagnottes",
@@ -81,6 +82,10 @@ export const messages = {
       loginSubtitle: "Accédez à vos discussions, tontines et cagnottes.",
       phone: "Téléphone",
       password: "Mot de passe",
+      otp: "Code OTP",
+      modePassword: "Mot de passe",
+      modeOtp: "OTP",
+      sendOtp: "Recevoir le code",
       signIn: "Se connecter",
       signInKeycloak: "Continuer avec Keycloak",
       createAccount: "Créer un compte",
@@ -106,6 +111,7 @@ export const messages = {
       noRooms: "Pas encore de discussion",
       createTontine: "Créer une tontine",
       createPot: "Créer une cagnotte",
+      createShort: "Créer",
       heroSub: "Discutez d’abord, gérez ensuite. Akiba One est fait pour que vous reveniez naturellement — pas pour remplir des formulaires.",
       streakDays: "{{n}} j de streak",
       streakRisk: "· à risque",
@@ -625,6 +631,9 @@ export const messages = {
     profile: {
       title: "Mon profil",
       desc: "Identité, préférences, notifications et engagement.",
+      menuEdit: "Modifier le profil",
+      menuEditHint: "Nom, bio, avatar, téléphone",
+      menuLangHint: "Langue de l’app",
       identity: "Identité",
       prefs: "Préférences utilisateur",
       notifSettings: "Paramètres notifications",
@@ -667,7 +676,17 @@ export const messages = {
       title: "Bienvenue sur Akiba One",
       subtitle: "{{done}}/{{total}} étapes — comme sur Android et iOS",
       enter: "Entrer dans l’app",
-      skip: "Continuer quand même",
+      skip: "Passer",
+      start: "Commencer",
+      slide1Title: "Épargnez en cercle",
+      slide1Body:
+        "Cagnottes et tontines avec vos proches — transparence et confiance.",
+      slide2Title: "Discutez avant de payer",
+      slide2Body:
+        "Messages, rappels et activité live au même endroit que sur mobile.",
+      slide3Title: "Mobile Money intégré",
+      slide3Body:
+        "Cotisez et suivez vos paiements en toute sécurité, même hors ligne.",
     },
     security: {
       lockTitle: "Verrouillage session",
@@ -686,9 +705,11 @@ export const messages = {
       pushDenied: "Permission refusée — activez-les dans les réglages du navigateur.",
     },
     history: {
-      desc: "Vos cotisations récentes — comme l’onglet Historique sur mobile.",
-      empty: "Aucune cotisation pour l’instant",
-      emptyHint: "Cotisez dans une cagnotte pour voir l’historique ici.",
+      desc: "Cagnottes créées et celles où vous participez — comme sur mobile.",
+      empty: "Aucune cagnotte dans l’historique",
+      emptyHint: "Créez ou rejoignez une cagnotte pour la voir ici.",
+      sectionCreated: "Créées par moi",
+      sectionJoined: "Auxquelles je participe",
     },
     pwa: {
       offlineBanner:
@@ -725,6 +746,7 @@ export const messages = {
     nav: {
       home: "Home",
       chat: "Chats",
+      messages: "Messages",
       discover: "Discover",
       tontines: "Tontines",
       contributions: "Pots",
@@ -814,6 +836,7 @@ export const messages = {
       noRooms: "No chats yet",
       createTontine: "Create une tontine",
       createPot: "Create une cagnotte",
+      createShort: "Create",
       heroSub: "Chat first, manage next. Akiba One is built so you come back naturally — not to fill forms.",
       streakDays: "{{n}} d streak",
       streakRisk: "· at risk",
@@ -1392,9 +1415,11 @@ export const messages = {
       pushDenied: "Permission denied — enable in browser settings.",
     },
     history: {
-      desc: "Your recent contributions — same as the History tab on mobile.",
-      empty: "No contributions yet",
-      emptyHint: "Contribute to a pot to see history here.",
+      desc: "Pots you created and pots you joined — same as mobile.",
+      empty: "No pots in history yet",
+      emptyHint: "Create or join a pot to see it here.",
+      sectionCreated: "Created by me",
+      sectionJoined: "Joined",
     },
     pwa: {
       offlineBanner: "Offline — your actions are saved on this device",
@@ -1429,6 +1454,7 @@ export const messages = {
     nav: {
       home: "Ahabanza",
       chat: "Ibiganiro",
+      messages: "Ubutumwa",
       discover: "Raba",
       tontines: "Amatontine",
       contributions: "Amafaranga",
@@ -1517,6 +1543,7 @@ export const messages = {
       noRooms: "No chats yet",
       createTontine: "Create une tontine",
       createPot: "Create une cagnotte",
+      createShort: "Create",
       heroSub: "Chat first, manage next. Akiba One is built so you come back naturally — not to fill forms.",
       streakDays: "{{n}} d streak",
       streakRisk: "· at risk",
@@ -2095,9 +2122,11 @@ export const messages = {
       pushDenied: "Permission denied — enable in browser settings.",
     },
     history: {
-      desc: "Your recent contributions — same as the History tab on mobile.",
-      empty: "No contributions yet",
-      emptyHint: "Contribute to a pot to see history here.",
+      desc: "Pots you created and pots you joined — same as mobile.",
+      empty: "No pots in history yet",
+      emptyHint: "Create or join a pot to see it here.",
+      sectionCreated: "Created by me",
+      sectionJoined: "Joined",
     },
     pwa: {
       offlineBanner: "Offline — your actions are saved on this device",
@@ -2132,6 +2161,7 @@ export const messages = {
     nav: {
       home: "Nyumbani",
       chat: "Mazungumzo",
+      messages: "Ujumbe",
       discover: "Gundua",
       tontines: "Tontine",
       contributions: "Vifuko",
@@ -2220,6 +2250,7 @@ export const messages = {
       noRooms: "No chats yet",
       createTontine: "Create une tontine",
       createPot: "Create une cagnotte",
+      createShort: "Create",
       heroSub: "Chat first, manage next. Akiba One is built so you come back naturally — not to fill forms.",
       streakDays: "{{n}} d streak",
       streakRisk: "· at risk",
@@ -2798,9 +2829,11 @@ export const messages = {
       pushDenied: "Permission denied — enable in browser settings.",
     },
     history: {
-      desc: "Your recent contributions — same as the History tab on mobile.",
-      empty: "No contributions yet",
-      emptyHint: "Contribute to a pot to see history here.",
+      desc: "Pots you created and pots you joined — same as mobile.",
+      empty: "No pots in history yet",
+      emptyHint: "Create or join a pot to see it here.",
+      sectionCreated: "Created by me",
+      sectionJoined: "Joined",
     },
     pwa: {
       offlineBanner: "Offline — your actions are saved on this device",
