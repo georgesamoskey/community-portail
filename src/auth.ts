@@ -13,10 +13,6 @@ import {
 const issuer = process.env.AUTH_KEYCLOAK_ISSUER;
 const clientId = process.env.AUTH_KEYCLOAK_ID ?? "portal";
 const clientSecret = process.env.AUTH_KEYCLOAK_SECRET;
-const oidcScope = process.env.AUTH_KEYCLOAK_SCOPE?.trim() || "openid";
-const oidcPromptLogin = process.env.AUTH_KEYCLOAK_PROMPT_LOGIN === "true";
-
-const keycloakConfigured = Boolean(issuer && clientId && clientSecret);
 
 function apiOrigin(): string {
   return (
@@ -115,7 +111,8 @@ function applyTokenUser(token: JWT, user: TokenUser) {
 }
 
 /**
- * Auth.js — OIDC Keycloak + credentials (ticket inscription / login téléphone).
+ * Auth.js — credentials uniquement (ticket, téléphone+mdp, OTP).
+ * Les jetons Nest restent des JWT Keycloak ; le refresh passe par Nest / KC token endpoint.
  */
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
@@ -137,24 +134,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   debug: process.env.AUTH_DEBUG === "true",
   providers: [
-    {
-      id: "keycloak",
-      name: "Keycloak",
-      type: "oidc",
-      style: { brandColor: "#0d9488" },
-      issuer:
-        issuer ??
-        "http://127.0.0.1:65535/realms/__configure_auth_keycloak_issuer__",
-      clientId: clientId || "portal",
-      clientSecret: clientSecret ?? "portal-build-placeholder",
-      checks: ["pkce", "state"],
-      authorization: {
-        params: {
-          scope: oidcScope,
-          ...(oidcPromptLogin ? { prompt: "login" as const } : {}),
-        },
-      },
-    },
+    // Connexion membre = credentials (ticket / téléphone+mdp / OTP). Pas d’OIDC UI.
     Credentials({
       id: "ticket",
       name: "Ticket",
@@ -327,7 +307,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         applyTokenUser(token, user as TokenUser);
       }
-      if (account) {
+      // OAuth/OIDC uniquement — le compte Credentials n’a pas access_token et
+      // écraserait les jetons Nest déjà copiés depuis `user`.
+      if (account && account.type !== "credentials" && account.access_token) {
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
         if (typeof account.id_token === "string") {
@@ -349,9 +331,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.expiresAt = account.expires_at * 1000;
         } else if (typeof account.expires_in === "number") {
           token.expiresAt = Date.now() + account.expires_in * 1000;
-        } else {
+        } else if (!token.expiresAt) {
           token.expiresAt = Date.now() + 300 * 1000;
         }
+        return token;
+      }
+      if (account?.type === "credentials") {
         return token;
       }
 
@@ -400,7 +385,3 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 });
-
-export function isKeycloakConfigured(): boolean {
-  return keycloakConfigured;
-}

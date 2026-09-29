@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { auth, isKeycloakConfigured } from "@/auth";
+import { auth } from "@/auth";
 import { portalPathFromNativeDeepLink } from "@/lib/deep-links";
 
 export default auth((req) => {
@@ -17,6 +16,7 @@ export default auth((req) => {
     pathname.startsWith("/register") ||
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/auth/") ||
+    pathname.startsWith("/share") ||
     pathname.startsWith("/invite") ||
     pathname.startsWith("/r/") ||
     pathname.startsWith("/offline") ||
@@ -30,11 +30,6 @@ export default auth((req) => {
   }
 
   if (pathname.startsWith("/app") || pathname.startsWith("/onboarding")) {
-    if (!isKeycloakConfigured()) {
-      return NextResponse.redirect(
-        new URL("/login?auth=config", req.nextUrl.origin),
-      );
-    }
     if (!req.auth) {
       const url = new URL("/login", req.nextUrl.origin);
       url.searchParams.set(

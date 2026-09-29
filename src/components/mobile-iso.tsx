@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { cx } from "@/lib/cx";
 import { Badge, money, statusTone } from "@/lib/ui";
+import { haptic } from "@/lib/native";
 
 /** Header gradient coins arrondis — ISO HomeHeader / ProfileSummary Android. */
 export function MobileHero({
@@ -67,7 +68,8 @@ export function ContributionCard({
   return (
     <Link
       href={to}
-      className="block rounded-2xl border border-ink/[0.06] bg-surface p-4 shadow-soft transition hover:border-brand-200"
+      onClick={() => haptic("selection")}
+      className="native-pressable block rounded-2xl border border-ink/[0.06] bg-surface p-4 shadow-soft transition hover:border-brand-200"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -132,13 +134,24 @@ export function SettingsRow({
   );
   if (href) {
     return (
-      <Link href={href} className={className}>
+      <Link
+        href={href}
+        className={cx(className, "native-pressable")}
+        onClick={() => haptic("selection")}
+      >
         {body}
       </Link>
     );
   }
   return (
-    <button type="button" onClick={onClick} className={className}>
+    <button
+      type="button"
+      onClick={() => {
+        haptic("selection");
+        onClick?.();
+      }}
+      className={cx(className, "native-pressable")}
+    >
       {body}
     </button>
   );
@@ -171,13 +184,26 @@ export function TabFab({
   );
   if (href) {
     return (
-      <Link href={href} className={className} aria-label={label}>
+      <Link
+        href={href}
+        className={cx(className, "native-pressable")}
+        aria-label={label}
+        onClick={() => haptic("medium")}
+      >
         {inner}
       </Link>
     );
   }
   return (
-    <button type="button" onClick={onClick} className={className} aria-label={label}>
+    <button
+      type="button"
+      onClick={() => {
+        haptic("medium");
+        onClick?.();
+      }}
+      className={cx(className, "native-pressable")}
+      aria-label={label}
+    >
       {inner}
     </button>
   );

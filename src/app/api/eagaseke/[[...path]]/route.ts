@@ -1,6 +1,5 @@
-import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
-import { authSessionCookieName, authSessionUsesSecureCookie } from "@/lib/auth-session-cookie";
+import { getPortalAccessJwt } from "@/lib/portal-jwt";
 
 /**
  * Préfixes autorisés pour le BFF customer portal.
@@ -23,6 +22,7 @@ const ALLOWED_PREFIXES = [
   "recommendations",
   "reports",
   "support",
+  "referral",
 ];
 
 function isBlockedPath(rel: string): boolean {
@@ -49,14 +49,7 @@ function upstreamOrigin(): string {
 }
 
 async function getJwt(req: NextRequest) {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret) return null;
-  return getToken({
-    req,
-    secret,
-    secureCookie: authSessionUsesSecureCookie(),
-    cookieName: authSessionCookieName(),
-  });
+  return getPortalAccessJwt(req);
 }
 
 async function proxy(

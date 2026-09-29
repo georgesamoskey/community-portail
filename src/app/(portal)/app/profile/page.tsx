@@ -6,9 +6,11 @@ import { useSession, signOut } from "next-auth/react";
 import { useI18n } from "@/lib/i18n/context";
 import { useBff } from "@/lib/use-bff";
 import { bffFetch, BffError } from "@/lib/bff-fetch";
-import { initialsFrom } from "@/lib/portal-api";
+import { MemberAvatar } from "@/components/member-avatar";
 import { MobileHero, SettingsRow } from "@/components/mobile-iso";
 import { LocaleSwitcher } from "@/components/locale-switcher";
+import { countryLabel } from "@/lib/country-flag";
+import { normalizeCountry } from "@/lib/i18n/config";
 
 type Profile = Record<string, unknown>;
 
@@ -55,15 +57,29 @@ export default function ProfileHubPage() {
     t("common.member");
   const phone = String(profile?.phone ?? profile?.phoneNumber ?? "");
   const email = String(profile?.email ?? session?.user?.email ?? "");
-  const initials = initialsFrom(fullName);
+  const avatarPath = String(profile?.avatar ?? nested.avatar ?? "");
+  const countryRaw = String(
+    profile?.country ?? nested.country ?? nested.countryCode ?? "",
+  );
+  const countryCode = countryRaw ? normalizeCountry(countryRaw) : null;
 
   return (
     <div className="space-y-4 pb-10">
       <MobileHero className="!rounded-b-[1.75rem] text-center">
-        <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-white/20 text-2xl font-bold ring-4 ring-white/30">
-          {initials || "?"}
+        <div className="mx-auto ring-4 ring-white/30 rounded-full">
+          <MemberAvatar
+            name={fullName}
+            avatarUrl={avatarPath || null}
+            size="lg"
+            className="!h-24 !w-24 !text-2xl !rounded-full ring-0"
+          />
         </div>
         <h1 className="mt-3 font-display text-xl font-bold">{fullName}</h1>
+        {countryCode ? (
+          <p className="mt-1 text-sm text-white/85">
+            {countryLabel(countryCode, { withDial: true })}
+          </p>
+        ) : null}
         {phone ? <p className="mt-1 text-sm text-white/80">{phone}</p> : null}
         {email ? <p className="text-xs text-white/70">{email}</p> : null}
       </MobileHero>
@@ -120,12 +136,18 @@ export default function ProfileHubPage() {
         <div className="h-px bg-ink/[0.06]" />
         <SettingsRow href="/app/notifications" title={t("nav.notifications")} />
         <div className="h-px bg-ink/[0.06]" />
+        <SettingsRow
+          href="/app/profile/native"
+          title={t("native.labTitle")}
+          subtitle={t("native.labHint")}
+        />
+        <div className="h-px bg-ink/[0.06]" />
         <div className="flex items-center justify-between px-4 py-3">
           <div>
             <p className="text-sm font-semibold text-ink">{t("common.language")}</p>
             <p className="text-xs text-ink-mute">{t("profile.menuLangHint")}</p>
           </div>
-          <LocaleSwitcher compact />
+          <LocaleSwitcher compact showCountry={false} />
         </div>
         <div className="h-px bg-ink/[0.06]" />
         <SettingsRow

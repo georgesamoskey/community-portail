@@ -1,0 +1,18 @@
+{
+  "packageId": "com.akibaone.portal.twa",
+  "host": "akibaone.duckdns.org",
+  "name": "Akiba One",
+  "launcherName": "Akiba One",
+  "display": "standalone",
+  "themeColor": "#337AB7",
+  "navigationColor": "#1a5276",
+  "backgroundColor": "#337AB7",
+  "enableNotifications": true,
+  "startUrl": "/app",
+  "iconUrl": "/icons/icon-512.png",
+  "maskableIconUrl": "/icons/maskable-512.png",
+  "shortcuts": [
+    { "name": "Chat", "shortName": "Chat", "url": "/app/chat" },
+    { "name": "Cagnottes", "shortName": "Cotiser", "url": "/app/contributions" }
+  ]
+}

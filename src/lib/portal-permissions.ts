@@ -10,7 +10,7 @@ export const Permission = {
 export type PermissionId = (typeof Permission)[keyof typeof Permission];
 
 export const ROLE_PERMISSIONS: Record<string, PermissionId[]> = {
-  customer: [Permission.PORTAL_ACCESS],
+  customer: [Permission.PORTAL_ACCESS, Permission.PORTAL_PAYMENTS],
   customer_premium: [
     Permission.PORTAL_ACCESS,
     Permission.PORTAL_PAYMENTS,
@@ -21,7 +21,7 @@ export const ROLE_PERMISSIONS: Record<string, PermissionId[]> = {
     Permission.PORTAL_COMMUNITY_MANAGE,
   ],
   /** Alias legacy / membres mobile */
-  user: [Permission.PORTAL_ACCESS],
+  user: [Permission.PORTAL_ACCESS, Permission.PORTAL_PAYMENTS],
   /** Accès lecture portail aussi pour le staff qui teste */
   admin: [
     Permission.PORTAL_ACCESS,

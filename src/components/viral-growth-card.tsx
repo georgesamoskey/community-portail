@@ -6,13 +6,36 @@ import { useBff } from "@/lib/use-bff";
 import { useI18n } from "@/lib/i18n/context";
 import { normalizeList } from "@/lib/portal-api";
 import { trackRecoEvent } from "@/lib/reco-track";
-import { africaShareLinks, copyShareText } from "@/lib/africa-share";
+import {
+  africaNativeShare,
+  africaShareLinks,
+  canNativeShare,
+  copyToClipboard,
+  resolveInviteShare,
+} from "@/lib/africa-share";
 import { Btn } from "@/lib/ui";
+import { MemberAvatar } from "@/components/member-avatar";
+import { memberDisplayName } from "@/lib/member-display";
+
+function notify(message: string, _tone?: string) {
+  if (typeof window !== "undefined") {
+    try {
+      // optional toast host if present
+      const ev = new CustomEvent("akiba:toast", { detail: { message } });
+      window.dispatchEvent(ev);
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
 type Invitee = {
   userId?: string;
   score?: number;
   displayLabel?: string;
+  displayName?: string;
+  fullName?: string;
+  avatar?: string | null;
   algorithm?: string;
 };
 
@@ -36,10 +59,16 @@ type ReferralPack = {
   registerUrl?: string;
   portalUrl?: string;
   acceptedCount?: number;
+  activatedCount?: number;
+  tier?: string;
+  shareRate?: number;
+  feeDiscountBoost?: number;
   funnel?: {
     landingHits?: number;
     registeredCount?: number;
+    registeredViaReferral?: number;
     conversionPct?: number;
+    activationPct?: number;
   };
   share?: {
     text?: string;
@@ -47,6 +76,16 @@ type ReferralPack = {
     whatsappUrl?: string;
     smsUrl?: string;
   };
+  wallet?: {
+    wallets?: Array<{
+      currency: string;
+      balance: number;
+      cotisationCredit: number;
+      lifetimeEarned: number;
+      payoutThreshold: number;
+    }>;
+  };
+  rules?: { earnWindowDays?: number; levels?: number };
 };
 
 const AMBASSADOR_TARGET = 5;
@@ -54,14 +93,16 @@ const AMBASSADOR_TARGET = 5;
 /** Boucle virale Afrique : WhatsApp / SMS / code parrain / challenges. */
 export function ViralGrowthCard({ engagement }: { engagement?: EngagementMe | null }) {
   const { t } = useI18n();
-  const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedMessage, setCopiedMessage] = useState(false);
   const [marked, setMarked] = useState<Set<string>>(new Set());
   const invitees = useBff<unknown>("/recommendations/invitees?limit=4");
   const board = useBff<unknown>("/engagement/leaderboard?limit=3");
-  const referral = useBff<ReferralPack>("/users/me/referral");
+  const referral = useBff<ReferralPack>("/referral/me/cercle");
   const challenges = useBff<{ active?: EngagementMe["activeChallenges"] }>(
     "/engagement/me/challenges",
   );
+  const [redeemBusy, setRedeemBusy] = useState(false);
 
   const accepted =
     referral.data?.acceptedCount ??
@@ -98,23 +139,50 @@ export function ViralGrowthCard({ engagement }: { engagement?: EngagementMe | nu
       firstName?: string;
       lastName?: string;
       fullName?: string;
+      avatar?: string | null;
+      userId?: string;
     }>(board.data, ["items", "leaderboard", "data", "results"]).slice(0, 3);
   }, [board.data]);
 
   const code = referral.data?.code ?? "…";
-  const registerUrl =
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "";
+  const defaultLink =
     referral.data?.registerUrl ||
     referral.data?.share?.url ||
-    `${typeof window !== "undefined" ? window.location.origin : ""}/r/${code}`;
-  const share = africaShareLinks(
-    referral.data?.share?.text ||
-      t("viral.shareText", {
-        streak: engagement?.currentStreak ?? 0,
-        level: engagement?.level ?? 1,
-        url: registerUrl,
+    referral.data?.portalUrl ||
+    (code !== "…"
+      ? `${origin}/register?ref=${encodeURIComponent(code)}`
+      : "");
+  const share = useMemo(
+    () =>
+      resolveInviteShare({
+        apiShare: referral.data?.share,
+        inviteLink: defaultLink,
+        body: t("viral.shareText", {
+          streak: engagement?.currentStreak ?? 0,
+          level: engagement?.level ?? 1,
+          url: defaultLink,
+        }),
       }),
-    registerUrl,
+    [referral.data?.share, defaultLink, t, engagement?.currentStreak, engagement?.level],
   );
+
+  const flashCopy = (kind: "link" | "message", ok: boolean) => {
+    if (!ok) {
+      notify(t("viral.copyFailed"), "warn");
+      return;
+    }
+    if (kind === "link") {
+      setCopiedLink(true);
+      notify(t("viral.copied"), "ok");
+      setTimeout(() => setCopiedLink(false), 2200);
+    } else {
+      setCopiedMessage(true);
+      notify(t("viral.copiedMessage"), "ok");
+      setTimeout(() => setCopiedMessage(false), 2200);
+    }
+  };
 
   const markInvited = (u: Invitee) => {
     if (!u.userId) return;
@@ -183,10 +251,70 @@ export function ViralGrowthCard({ engagement }: { engagement?: EngagementMe | nu
             <p className="mt-2 text-xs text-ink-mute">
               {t("viral.funnel", {
                 hits: referral.data.funnel.landingHits ?? 0,
-                joins: referral.data.funnel.registeredCount ?? 0,
+                joins:
+                  referral.data.funnel.registeredCount ??
+                  referral.data.funnel.registeredViaReferral ??
+                  referral.data.acceptedCount ??
+                  0,
                 pct: referral.data.funnel.conversionPct ?? 0,
               })}
+              {referral.data.tier
+                ? ` · ${referral.data.tier}`
+                : ""}
+              {referral.data.shareRate != null
+                ? ` · ${Math.round(referral.data.shareRate * 100)}% share`
+                : ""}
+              {referral.data.feeDiscountBoost
+                ? ` · −${Math.round(referral.data.feeDiscountBoost * 100)}% frais`
+                : ""}
             </p>
+          )}
+          {(referral.data?.wallet?.wallets?.length ?? 0) > 0 && (
+            <div className="mt-3 space-y-1 rounded-xl border border-ink/[0.06] bg-surface-sunken/40 px-3 py-2 text-xs">
+              {referral.data!.wallet!.wallets!.map((w) => (
+                <div
+                  key={w.currency}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span>
+                    Solde {w.currency}:{" "}
+                    <strong className="tabular-nums">
+                      {Number(w.balance).toLocaleString("fr-FR")}
+                    </strong>
+                    {w.cotisationCredit > 0
+                      ? ` · crédit cotis. ${Number(w.cotisationCredit).toLocaleString("fr-FR")}`
+                      : ""}
+                  </span>
+                  {w.balance > 0 ? (
+                    <button
+                      type="button"
+                      disabled={redeemBusy}
+                      className="font-semibold text-brand-700 disabled:opacity-50"
+                      onClick={() => {
+                        setRedeemBusy(true);
+                        void import("@/lib/bff-fetch")
+                          .then(({ bffFetch }) =>
+                            bffFetch("/referral/me/redeem-credit", {
+                              method: "POST",
+                              body: JSON.stringify({ currency: w.currency }),
+                            }),
+                          )
+                          .then(() => {
+                            notify("Crédit cotisation crédité", "ok");
+                            void referral.refresh();
+                          })
+                          .catch(() =>
+                            notify("Échec conversion solde", "warn"),
+                          )
+                          .finally(() => setRedeemBusy(false));
+                      }}
+                    >
+                      Convertir
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
@@ -195,16 +323,24 @@ export function ViralGrowthCard({ engagement }: { engagement?: EngagementMe | nu
             <p className="text-[11px] font-bold uppercase tracking-wide text-brand-700/70">
               {t("viral.socialProof")}
             </p>
-            <p className="mt-1">
+            <div className="mt-2 flex items-center gap-2">
+              {topLeaders.slice(0, 3).map((l) => {
+                const name = memberDisplayName(l, "—");
+                return (
+                  <MemberAvatar
+                    key={l.userId ?? name}
+                    name={name}
+                    avatarUrl={l.avatar}
+                    size="sm"
+                  />
+                );
+              })}
+            </div>
+            <p className="mt-2">
               {t("viral.leadersHint", {
                 names: topLeaders
-                  .map((l) => {
-                    const name =
-                      l.fullName ??
-                      [l.firstName, l.lastName].filter(Boolean).join(" ");
-                    return name || "—";
-                  })
-                  .filter(Boolean)
+                  .map((l) => memberDisplayName(l, "—"))
+                  .filter((n) => n !== "—")
                   .slice(0, 2)
                   .join(", "),
               })}
@@ -218,25 +354,25 @@ export function ViralGrowthCard({ engagement }: { engagement?: EngagementMe | nu
               {t("discover.whoInvite")}
             </p>
             <ul className="space-y-2">
-              {inviteeList.slice(0, 3).map((u) => (
+              {inviteeList.slice(0, 3).map((u) => {
+                const name = memberDisplayName(u, t("common.member"));
+                return (
                 <li
                   key={u.userId}
                   className="flex items-center gap-2 rounded-xl border border-ink/[0.06] px-3 py-2"
                 >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-mint-100 text-xs font-bold text-mint-900">
-                    {u.displayLabel ?? "?"}
-                  </span>
+                  <MemberAvatar name={name} avatarUrl={u.avatar} size="sm" />
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                    {u.displayLabel}
+                    {name}
                   </span>
                   <a
                     href={
                       africaShareLinks(
                         t("viral.dmInvite", {
-                          name: u.displayLabel ?? "",
+                          name,
                           code,
                         }),
-                        registerUrl,
+                        share.inviteLink,
                       ).whatsapp
                     }
                     target="_blank"
@@ -247,12 +383,57 @@ export function ViralGrowthCard({ engagement }: { engagement?: EngagementMe | nu
                     WA
                   </a>
                 </li>
-              ))}
+              );
+              })}
             </ul>
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {share.inviteLink ? (
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold text-ink-mute">
+              {t("viral.inviteLink")}
+            </p>
+            <div className="flex gap-2">
+              <input
+                readOnly
+                value={share.inviteLink}
+                className="min-w-0 flex-1 rounded-xl border border-ink/[0.1] bg-surface-sunken/50 px-3 py-2.5 text-xs text-ink outline-none"
+                aria-label={t("viral.inviteLink")}
+                onFocus={(e) => e.target.select()}
+              />
+              <Btn
+                variant="secondary"
+                className="shrink-0 px-4"
+                onClick={() =>
+                  void copyToClipboard(share.inviteLink).then((ok) =>
+                    flashCopy("link", ok),
+                  )
+                }
+              >
+                {copiedLink ? t("viral.copied") : t("viral.copyLink")}
+              </Btn>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {canNativeShare() ? (
+            <Btn
+              variant="secondary"
+              onClick={() =>
+                void africaNativeShare({
+                  title: "Akiba One",
+                  text: share.full,
+                  url: share.inviteLink,
+                }).then((r) => {
+                  if (r === "copied") flashCopy("message", true);
+                })
+              }
+            >
+              {t("native.shareSystem")}
+            </Btn>
+          ) : null}
           <a
             href={share.whatsapp}
             target="_blank"
@@ -270,19 +451,16 @@ export function ViralGrowthCard({ engagement }: { engagement?: EngagementMe | nu
           <Btn
             variant="secondary"
             onClick={() =>
-              void copyShareText(share.full).then((ok) => {
-                if (ok) {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                }
-              })
+              void copyToClipboard(share.full).then((ok) =>
+                flashCopy("message", ok),
+              )
             }
           >
-            {copied ? t("viral.copied") : t("viral.copy")}
+            {copiedMessage ? t("viral.copiedMessage") : t("viral.copyMessage")}
           </Btn>
           <Link
             href="/app/invitations"
-            className="inline-flex items-center justify-center rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm font-semibold text-brand-800"
+            className="col-span-2 inline-flex items-center justify-center rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm font-semibold text-brand-800 sm:col-span-1"
           >
             {t("viral.inviteCta")}
           </Link>

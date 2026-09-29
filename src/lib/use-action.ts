@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { bffFetch, BffError } from "@/lib/bff-fetch";
+import { celebrate } from "@/lib/native";
 
 type ActionState = {
   busy: boolean;
@@ -26,6 +27,7 @@ export function useAction() {
       opts?: {
         success?: string | ((result: T) => string);
         onDone?: (result: T) => void;
+        celebrate?: boolean;
       },
     ): Promise<T | null> => {
       setState({ busy: true, error: null, success: null });
@@ -40,6 +42,7 @@ export function useAction() {
           error: null,
           success,
         });
+        if (opts?.celebrate !== false && opts?.success) celebrate();
         opts?.onDone?.(result);
         return result;
       } catch (e) {
@@ -58,6 +61,7 @@ export function useAction() {
       opts?: {
         success?: string | ((result: T) => string);
         onDone?: (result: T) => void;
+        celebrate?: boolean;
       },
     ) => run(() => bffFetch<T>(path, init), opts),
     [run],

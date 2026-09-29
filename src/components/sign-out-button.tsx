@@ -3,12 +3,9 @@
 import { signOut } from "next-auth/react";
 import { cx } from "@/lib/cx";
 
-/** Après déconnexion : retour sur le site marketing (pas le shell membre). */
+/** Après déconnexion membre : écran login portail. */
 function afterLogoutUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_CMS_URL?.replace(/\/$/, "") ||
-    "http://localhost:3004"
-  );
+  return "/login";
 }
 
 type Props = {

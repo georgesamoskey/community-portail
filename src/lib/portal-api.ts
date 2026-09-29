@@ -53,6 +53,13 @@ export type ChatReaction = {
   reaction: string;
 };
 
+export type SenderTrust = {
+  currentStreak?: number;
+  level?: number;
+  streakAtRisk?: boolean;
+  ambassador?: boolean;
+};
+
 export type ChatMessage = {
   id: string;
   roomId?: string;
@@ -62,6 +69,7 @@ export type ChatMessage = {
   senderId?: string;
   senderName?: string | null;
   senderAvatar?: string | null;
+  senderTrust?: SenderTrust | null;
   sender?: {
     id?: string;
     firstName?: string;

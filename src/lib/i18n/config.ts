@@ -20,6 +20,7 @@ export const COUNTRY_META: Record<
   CountryCode,
   {
     name: string;
+    flag: string;
     currency: string;
     dial: string;
     languages: readonly Locale[];
@@ -28,6 +29,7 @@ export const COUNTRY_META: Record<
 > = {
   BI: {
     name: "Burundi",
+    flag: "🇧🇮",
     currency: "BIF",
     dial: "+257",
     languages: ["fr", "rn", "en"],
@@ -35,6 +37,7 @@ export const COUNTRY_META: Record<
   },
   CD: {
     name: "DR Congo",
+    flag: "🇨🇩",
     currency: "CDF",
     dial: "+243",
     languages: ["fr", "en"],
@@ -42,6 +45,7 @@ export const COUNTRY_META: Record<
   },
   RW: {
     name: "Rwanda",
+    flag: "🇷🇼",
     currency: "RWF",
     dial: "+250",
     languages: ["fr", "en", "rn"],
@@ -49,6 +53,7 @@ export const COUNTRY_META: Record<
   },
   TZ: {
     name: "Tanzania",
+    flag: "🇹🇿",
     currency: "TZS",
     dial: "+255",
     languages: ["en", "sw"],
@@ -56,6 +61,7 @@ export const COUNTRY_META: Record<
   },
   KE: {
     name: "Kenya",
+    flag: "🇰🇪",
     currency: "KES",
     dial: "+254",
     languages: ["en", "sw"],
@@ -63,6 +69,7 @@ export const COUNTRY_META: Record<
   },
   UG: {
     name: "Uganda",
+    flag: "🇺🇬",
     currency: "UGX",
     dial: "+256",
     languages: ["en", "sw"],

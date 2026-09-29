@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { cx } from "@/lib/cx";
 import { hasPermission, Permission } from "@/lib/portal-permissions";
@@ -10,12 +10,21 @@ import { SignOutButton } from "@/components/sign-out-button";
 import { useBff } from "@/lib/use-bff";
 import { initialsFrom } from "@/lib/portal-api";
 import { useI18n } from "@/lib/i18n/context";
-import { LocaleSwitcher } from "@/components/locale-switcher";
 import {
   OfflineBanner,
   PwaInstallPrompt,
   SyncStatusChip,
 } from "@/components/offline-ui";
+import { OfflineQueuePanel } from "@/components/native-pro";
+import { NativeRuntime } from "@/components/native-runtime";
+import {
+  BottomSheet,
+  PullToRefresh,
+  SheetLink,
+} from "@/components/native-ux";
+import { NetworkQualityChip } from "@/components/native-plus";
+import { LocaleSwitcher } from "@/components/locale-switcher";
+import { haptic } from "@/lib/native";
 
 function IconHome({ className }: { className?: string }) {
   return (
@@ -109,6 +118,7 @@ type DockIcon = (props: { className?: string }) => React.ReactNode;
 
 export function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { data: session } = useSession();
   const { t, messages } = useI18n();
   const roles = session?.user?.roles;
@@ -123,9 +133,11 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const unreadChat = useBff<{ count?: number }>("/chat/unread");
   const unreadCount = unreadNotif.data?.count ?? 0;
   const chatUnread = unreadChat.data?.count ?? 0;
+  const refreshNotif = unreadNotif.refresh;
+  const refreshChat = unreadChat.refresh;
+  const badgeTotal = unreadCount + chatUnread;
   const isChat = pathname.startsWith("/app/chat");
 
-  // Desktop : même ordre métier qu’Android + Plus
   const PRIMARY_NAV = [
     { href: "/app", label: t("nav.home") },
     { href: "/app/chat", label: t("nav.messages") },
@@ -147,10 +159,10 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       label: t("nav.payments"),
       require: Permission.PORTAL_PAYMENTS,
     },
+    { href: "/app/contributions", label: t("nav.contributions") },
     { href: "/app/profile", label: t("nav.profile") },
   ];
 
-  // ISO Android : Accueil | Messages | Historique | Tontines | Profil
   const MOBILE_DOCK: Array<{
     href: string;
     label: string;
@@ -164,10 +176,12 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   ];
 
   const [moreOpen, setMoreOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMoreOpen(false);
+    setSheetOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -185,9 +199,16 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const moreActive = MORE_NAV.some((item) => isActive(item.href));
   const moreInviteBadge = unreadCount > 0;
 
+  const onPullRefresh = useCallback(async () => {
+    router.refresh();
+    await Promise.all([refreshNotif(), refreshChat()]);
+    await new Promise((r) => setTimeout(r, 350));
+  }, [router, refreshNotif, refreshChat]);
+
   return (
-    <div className="min-h-screen text-ink">
-      {/* Desktop chrome. Mobile = plein écran ISO Android (hero dans chaque onglet). */}
+    <div className="min-h-dvh text-ink akiba-app-shell">
+      <NativeRuntime badgeCount={badgeTotal} />
+
       <header className="sticky top-0 z-40 hidden border-b border-ink/[0.06] bg-surface/90 backdrop-blur-xl md:block">
         <div
           className={cx(
@@ -198,7 +219,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           <Link href="/app" className="group flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/icon.png"
+              src="/icons/icon-192.png"
               alt=""
               width={36}
               height={36}
@@ -209,6 +230,8 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             </span>
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
+            <LocaleSwitcher compact showCountry={false} className="hidden lg:flex" />
+            <NetworkQualityChip />
             <SyncStatusChip />
             <Link
               href="/app/notifications"
@@ -247,7 +270,6 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
                 {name}
               </span>
             </Link>
-            <LocaleSwitcher compact />
             <SignOutButton label={t("nav.logout")} />
           </div>
         </div>
@@ -336,18 +358,34 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
 
       <OfflineBanner />
 
-      <main
-        className={cx(
-          "portal-page mx-auto",
-          isChat
-            ? "max-w-7xl px-0 pb-24 pt-0 md:px-4 md:pb-6 md:pt-4"
-            : "max-w-6xl px-4 py-6 pb-28 sm:px-6 md:pb-10",
-        )}
-      >
-        {children}
-      </main>
+      <PullToRefresh onRefresh={onPullRefresh} disabled={isChat}>
+        <main
+          className={cx(
+            "portal-page mx-auto",
+            isChat
+              ? "max-w-7xl px-0 pb-24 pt-0 md:px-4 md:pb-6 md:pt-4"
+              : "max-w-6xl px-4 py-6 pb-28 sm:px-6 md:pb-10",
+          )}
+        >
+          {!isChat ? <OfflineQueuePanel /> : null}
+          {children}
+        </main>
+      </PullToRefresh>
 
       <PwaInstallPrompt />
+
+      {/* Handle « Plus » — swipe-up native au-dessus du dock */}
+      <button
+        type="button"
+        className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-[51] mx-auto flex h-5 w-full max-w-lg items-center justify-center md:hidden"
+        aria-label={t("nav.more")}
+        onClick={() => {
+          haptic("light");
+          setSheetOpen(true);
+        }}
+      >
+        <span className="h-1 w-9 rounded-full bg-ink/20" />
+      </button>
 
       <nav
         className="fixed inset-x-0 bottom-0 z-50 border-t border-ink/[0.06] bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
@@ -357,22 +395,47 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           {MOBILE_DOCK.map((item) => {
             const active = isActive(item.href);
             const { Icon } = item;
+            const isProfile = item.href === "/app/profile";
             return (
               <li key={item.href} className="flex-1">
                 <Link
                   href={item.href}
+                  onClick={(e) => {
+                    if (isProfile && (active || moreActive)) {
+                      e.preventDefault();
+                      haptic("medium");
+                      setSheetOpen(true);
+                      return;
+                    }
+                    haptic(active ? "light" : "selection");
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    haptic("medium");
+                    setSheetOpen(true);
+                  }}
                   className={cx(
-                    "relative flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] font-semibold tracking-wide transition",
-                    active ? "text-brand-600" : "text-ink-mute",
+                    "native-pressable relative flex flex-col items-center gap-0.5 px-1 py-2 text-[10px] font-semibold tracking-wide transition",
+                    active || (isProfile && sheetOpen)
+                      ? "text-brand-600"
+                      : "text-ink-mute",
                   )}
                 >
                   <span
                     className={cx(
                       "inline-flex h-8 w-8 items-center justify-center rounded-xl transition",
-                      active && "bg-brand-50",
+                      (active || (isProfile && sheetOpen)) &&
+                        "bg-brand-50 shadow-soft",
                     )}
                   >
-                    <Icon className="h-5 w-5" />
+                    {isProfile && moreInviteBadge && !active ? (
+                      <span className="relative">
+                        <Icon className="h-5 w-5" />
+                        <span className="absolute -right-1 -top-0.5 h-1.5 w-1.5 rounded-full bg-brand-500" />
+                      </span>
+                    ) : (
+                      <Icon className="h-5 w-5" />
+                    )}
                   </span>
                   <span className="truncate">{item.label}</span>
                   {item.href === "/app/chat" && chatUnread > 0 ? (
@@ -386,6 +449,47 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           })}
         </ul>
       </nav>
+
+      <BottomSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        title={t("native.moreTitle")}
+      >
+        <div className="mb-2 flex items-center gap-3 rounded-2xl bg-surface-sunken/60 px-3 py-3">
+          <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-lift">
+            {initials || "M"}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold text-ink">{name}</p>
+            <p className="text-xs text-ink-mute">{t("native.quickAccess")}</p>
+          </div>
+          <LocaleSwitcher compact showCountry={false} />
+        </div>
+        <div className="divide-y divide-ink/[0.05] rounded-2xl border border-ink/[0.06] bg-surface">
+          <SheetLink
+            href="/app/profile/native"
+            label={t("native.labTitle")}
+            onNavigate={() => setSheetOpen(false)}
+          />
+          {MORE_NAV.filter((item) => {
+            if (!("require" in item) || !item.require) return true;
+            return hasPermission(roles, item.require);
+          }).map((item) => (
+            <SheetLink
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              badge={
+                item.href === "/app/notifications" ? unreadCount : undefined
+              }
+              onNavigate={() => setSheetOpen(false)}
+            />
+          ))}
+        </div>
+        <div className="mt-3 px-1 pb-2">
+          <SignOutButton label={t("nav.logout")} />
+        </div>
+      </BottomSheet>
     </div>
   );
 }

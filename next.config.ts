@@ -13,7 +13,7 @@ const withPWA = withPWAInit({
   customWorkerSrc: "worker",
   customWorkerPrefix: "akiba",
   workboxOptions: {
-    skipWaiting: true,
+    skipWaiting: false,
     clientsClaim: true,
     runtimeCaching: [
       {
@@ -23,6 +23,14 @@ const withPWA = withPWAInit({
       },
       {
         urlPattern: /^https?:\/\/.*\/api\/auth\/.*/i,
+        handler: "NetworkOnly",
+      },
+      {
+        urlPattern: /^https?:\/\/.*\/api\/ws-token.*/i,
+        handler: "NetworkOnly",
+      },
+      {
+        urlPattern: /^https?:\/\/.*\/socket\.io\/.*/i,
         handler: "NetworkOnly",
       },
       {
@@ -51,7 +59,7 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+    value: "camera=(self), microphone=(self), geolocation=(), interest-cohort=()",
   },
   ...(isProd
     ? [

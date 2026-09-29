@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { LocaleSwitcher } from "@/components/locale-switcher";
+import { PwaInstallPrompt } from "@/components/offline-ui";
 import { useI18n } from "@/lib/i18n/context";
 
 /** Shell auth ISO Android LoginScreen : gradient plein + carte blanche. */
@@ -23,7 +24,7 @@ export function AuthShell({
         <Link href="/" className="flex items-center gap-2.5 text-white">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/icon.png"
+            src="/icons/icon-192.png"
             alt=""
             width={40}
             height={40}
@@ -47,6 +48,7 @@ export function AuthShell({
           {footer}
         </footer>
       ) : null}
+      <PwaInstallPrompt />
     </div>
   );
 }
@@ -87,21 +89,30 @@ export function AuthModeChips({
   otpLabel: string;
 }) {
   return (
-    <div className="mb-4 flex gap-2 rounded-xl bg-surface-sunken p-1">
-      {(["password", "otp"] as const).map((m) => (
-        <button
-          key={m}
-          type="button"
-          onClick={() => onChange(m)}
-          className={
-            mode === m
-              ? "flex-1 rounded-lg bg-brand-500 px-3 py-2 text-xs font-bold text-white shadow-soft"
-              : "flex-1 rounded-lg px-3 py-2 text-xs font-bold text-ink-mute"
-          }
-        >
-          {m === "password" ? passwordLabel : otpLabel}
-        </button>
-      ))}
+    <div
+      role="tablist"
+      aria-label="Mode de connexion"
+      className="mb-5 flex gap-1 rounded-2xl bg-surface-sunken p-1"
+    >
+      {(["password", "otp"] as const).map((m) => {
+        const active = mode === m;
+        return (
+          <button
+            key={m}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(m)}
+            className={
+              active
+                ? "min-h-11 flex-1 rounded-xl bg-brand-500 px-3 py-2.5 text-sm font-bold text-white shadow-soft"
+                : "min-h-11 flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink-mute transition hover:text-ink"
+            }
+          >
+            {m === "password" ? passwordLabel : otpLabel}
+          </button>
+        );
+      })}
     </div>
   );
 }

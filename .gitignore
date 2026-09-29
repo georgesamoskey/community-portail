@@ -49,3 +49,8 @@ next-env.d.ts
 /public/fallback-*.js
 /public/akiba-*.js
 /public/akiba-*.js.map
+.env*
+.env.vercel*
+
+.env.local
+.env*.local

@@ -6,7 +6,12 @@ import { useI18n } from "@/lib/i18n/context";
 import { useBff } from "@/lib/use-bff";
 import { normalizeList } from "@/lib/portal-api";
 import { trackRecoEvent } from "@/lib/reco-track";
-import { Alert, Badge, Btn, EmptyState, money, PageHeader } from "@/lib/ui";
+import {
+  NetworkInviteeRow,
+  type NetworkInvitee,
+} from "@/components/network-invitee-row";
+import { CountryBadge } from "@/components/country-select";
+import { Alert, Badge, EmptyState, money, PageHeader } from "@/lib/ui";
 
 type Row = {
   id?: string;
@@ -22,12 +27,7 @@ type Row = {
   country?: string;
 };
 
-type Invitee = {
-  userId?: string;
-  score?: number;
-  algorithm?: string;
-  displayLabel?: string;
-};
+type Invitee = NetworkInvitee;
 
 export default function DiscoverPage() {
   const { t } = useI18n();
@@ -175,36 +175,12 @@ export default function DiscoverPage() {
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2">
             {inviteeList.map((u) => (
-              <li
-                key={u.userId}
-                className="flex items-center gap-3 rounded-2xl border border-ink/[0.06] bg-surface p-3 shadow-soft"
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-800">
-                  {u.displayLabel ?? "?"}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-ink">
-                    {u.displayLabel ?? u.userId?.slice(0, 8)}
-                  </p>
-                  <p className="text-xs text-ink-mute">
-                    {u.algorithm ?? "adamic_adar"}
-                    {u.score != null
-                      ? ` · ${(Number(u.score) * 100).toFixed(0)}%`
-                      : ""}
-                  </p>
-                </div>
-                <Btn
-                  variant="secondary"
-                  onClick={() => markInviteSent(u)}
-                >
-                  {t("discover.markInvited")}
-                </Btn>
-                <Link
-                  href="/app/contributions"
-                  className="text-xs font-semibold text-brand-700"
-                >
-                  {t("discover.inviteOnPot")}
-                </Link>
+              <li key={u.userId}>
+                <NetworkInviteeRow
+                  person={u}
+                  onMarkInvited={() => markInviteSent(u)}
+                  shareHref="/app/contributions"
+                />
               </li>
             ))}
           </ul>
@@ -233,7 +209,10 @@ export default function DiscoverPage() {
                   <p className="font-semibold text-ink">
                     {c.title ?? t("discover.pot")}
                   </p>
-                  {c.status ? <Badge>{c.status}</Badge> : null}
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <CountryBadge code={c.country} />
+                    {c.status ? <Badge>{c.status}</Badge> : null}
+                  </div>
                 </div>
                 {c.financialGoal != null && (
                   <p className="mt-1 text-sm text-ink-mute">

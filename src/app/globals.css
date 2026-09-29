@@ -19,8 +19,56 @@
   --glow-teal: rgba(14, 154, 167, 0.12);
 }
 
+html.dark {
+  --background: #0b1a2b;
+  --foreground: #e8f0f8;
+  --surface: #122338;
+  --surface-raised: #163049;
+  --surface-sunken: #0e1f33;
+  --accent: #5ba3d9;
+  --accent-deep: #337ab7;
+  --accent-soft: #1a3a5c;
+  --mint: #2ec4b6;
+  --mint-soft: #0e3d42;
+  --ink-mute: #8aa4bc;
+  --line: rgba(232, 240, 248, 0.1);
+  --glow-brand: rgba(91, 163, 217, 0.18);
+  --glow-teal: rgba(46, 196, 182, 0.12);
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-image:
+    radial-gradient(900px 520px at 8% -8%, var(--glow-brand), transparent 55%),
+    radial-gradient(700px 420px at 92% 4%, var(--glow-teal), transparent 50%),
+    linear-gradient(165deg, #0b1a2b 0%, #0f2236 45%, #0d2830 100%);
+}
+
+@keyframes akiba-celebrate {
+  0% {
+    filter: brightness(1);
+  }
+  40% {
+    filter: brightness(1.08);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
+html.akiba-celebrate body {
+  animation: akiba-celebrate 0.85s ease;
+}
+
 html {
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body {
+  overscroll-behavior-y: none;
 }
 
 body {
@@ -32,7 +80,93 @@ body {
     linear-gradient(165deg, #f4f8fc 0%, #eef4fa 45%, #e8f4f5 100%);
   background-attachment: fixed;
   min-height: 100vh;
+  min-height: 100dvh;
+  min-height: calc(var(--app-vh, 1vh) * 100);
   font-feature-settings: "ss01" on, "cv11" on;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Mode app installée — chrome plein écran */
+.akiba-standalone body,
+html.akiba-standalone body {
+  background-attachment: scroll;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.akiba-standalone input,
+.akiba-standalone textarea,
+.akiba-standalone [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.akiba-offline .akiba-app-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 2px;
+  z-index: 90;
+  background: linear-gradient(90deg, #f59e0b, #f97316);
+}
+
+.native-pressable {
+  transition: transform 0.12s ease, opacity 0.12s ease;
+  will-change: transform;
+}
+
+.native-pressable:active {
+  transform: scale(0.97);
+  opacity: 0.92;
+}
+
+@keyframes native-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes native-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes native-toast {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.native-toast {
+  animation: native-toast 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .native-pressable,
+  .native-toast,
+  .portal-page,
+  .social-rise,
+  .chat-msg {
+    animation: none !important;
+    transition: none !important;
+  }
+  .native-pressable:active {
+    transform: none;
+  }
 }
 
 ::selection {
@@ -95,6 +229,32 @@ body {
 
 .chat-msg {
   animation: chat-msg-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
+}
+
+.chat-thread-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+}
+
+.chat-composer {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+@supports (padding: max(0px)) {
+  .akiba-standalone .chat-composer {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* iOS Safari — éviter le zoom focus + clavier qui écrase le composer */
+@supports (-webkit-touch-callout: none) {
+  .chat-composer input,
+  .chat-composer textarea {
+    font-size: 16px;
+  }
 }
 
 .typing-dots i {
@@ -130,6 +290,7 @@ body {
 .chat-shell {
   animation: social-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
   box-shadow: var(--shadow-chat, 0 20px 50px rgba(10, 31, 61, 0.08));
+  overscroll-behavior: none;
 }
 
 .chat-thread-bg {

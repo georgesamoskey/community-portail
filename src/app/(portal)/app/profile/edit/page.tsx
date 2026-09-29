@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useI18n } from "@/lib/i18n/context";
-import { LocaleSwitcher } from "@/components/locale-switcher";
 import { bffFetch, BffError } from "@/lib/bff-fetch";
 import { useAction } from "@/lib/use-action";
 import { useBff } from "@/lib/use-bff";
@@ -220,12 +219,9 @@ export default function ProfilePage() {
         title={t("profile.menuEdit")}
         description={t("profile.menuEditHint")}
         actions={
-          <>
-            <LocaleSwitcher compact />
-            <Btn variant="secondary" onClick={() => void loadProfile()}>
-              {t("common.refresh")}
-            </Btn>
-          </>
+          <Btn variant="secondary" onClick={() => void loadProfile()}>
+            {t("common.refresh")}
+          </Btn>
         }
       />
 

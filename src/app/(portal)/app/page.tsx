@@ -22,6 +22,12 @@ import {
 } from "@/lib/retention";
 import { useI18n } from "@/lib/i18n/context";
 import { ViralGrowthCard } from "@/components/viral-growth-card";
+import { LiveActivityList, type LiveActivityItem } from "@/components/live-activity-list";
+import { MemberTrustBadge } from "@/components/member-trust-badge";
+import {
+  NetworkInviteeRow,
+  type NetworkInvitee,
+} from "@/components/network-invitee-row";
 import {
   ContributionCard,
   type ContributionLike,
@@ -74,7 +80,17 @@ export default function PortalHomePage() {
     level?: number;
     totalPoints?: number;
     streakAtRisk?: boolean;
+    stats?: { invitationsAccepted?: number };
   }>("/engagement/me");
+  const circleActivity = useBff<{ items?: LiveActivityItem[] }>(
+    "/chat/live-activity/me?limit=12",
+  );
+  const networkInvitees = useBff<unknown>(
+    "/recommendations/invitees?limit=4",
+  );
+  const referralBrief = useBff<{ acceptedCount?: number }>(
+    "/referral/me/cercle",
+  );
 
   const [checklist, setChecklist] = useState(loadChecklist);
   const [visit, setVisit] = useState<{ daysSince?: number; returning: boolean }>(
@@ -113,6 +129,38 @@ export default function PortalHomePage() {
   const notifUnread = unreadNotif.data?.count ?? 0;
   const progress = checklistProgress(checklist);
   const showOnboarding = progress.pct < 100;
+
+  const activityItems = useMemo(() => {
+    const raw = circleActivity.data;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw as LiveActivityItem[];
+    return raw.items ?? [];
+  }, [circleActivity.data]);
+
+  const networkPeople = useMemo(() => {
+    const raw = Array.isArray(networkInvitees.data)
+      ? (networkInvitees.data as NetworkInvitee[])
+      : normalizeList<NetworkInvitee>(networkInvitees.data, [
+          "items",
+          "invitees",
+          "data",
+        ]);
+    return raw.filter((u) => u.userId).slice(0, 3);
+  }, [networkInvitees.data]);
+
+  const acceptedInvites =
+    referralBrief.data?.acceptedCount ??
+    engagement.data?.stats?.invitationsAccepted ??
+    0;
+  const trustSignals = useMemo(
+    () => ({
+      currentStreak: engagement.data?.currentStreak,
+      level: engagement.data?.level,
+      streakAtRisk: engagement.data?.streakAtRisk,
+      ambassador: acceptedInvites >= 5,
+    }),
+    [engagement.data, acceptedInvites],
+  );
 
   const nextActions = useMemo(() => {
     const actions: Array<{
@@ -192,17 +240,55 @@ export default function PortalHomePage() {
             ) : null}
           </Link>
         </div>
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           <span className="rounded-lg bg-white/15 px-2.5 py-1 text-xs font-bold">
             {t("home.circles", { n: tontineCount + myPots.length })}
           </span>
-          {engagement.data?.currentStreak != null ? (
-            <span className="rounded-lg bg-white/15 px-2.5 py-1 text-xs font-bold">
-              {t("home.streakDays", { n: engagement.data.currentStreak })}
-            </span>
-          ) : null}
+          <MemberTrustBadge
+            signals={trustSignals}
+            className="[&_span]:bg-white/15 [&_span]:text-white"
+          />
         </div>
       </MobileHero>
+
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <SectionLabel>{t("home.circleActivity")}</SectionLabel>
+          <Link href="/app/chat" className="text-xs font-bold text-brand-600">
+            {t("common.seeAll")}
+          </Link>
+        </div>
+        {circleActivity.loading && activityItems.length === 0 ? (
+          <p className="text-sm text-ink-mute">{t("common.loading")}</p>
+        ) : activityItems.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-ink/10 bg-surface-sunken/40 px-4 py-3">
+            <p className="text-sm text-ink-mute">
+              {t("home.circleActivityEmpty")}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Link
+                href="/app/chat"
+                className="text-xs font-bold text-brand-600"
+              >
+                {t("home.openChat")}
+              </Link>
+              <span className="text-ink-faint">·</span>
+              <Link
+                href="/app/contributions#create"
+                className="text-xs font-bold text-brand-600"
+              >
+                {t("home.createPot")}
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <LiveActivityList
+            items={activityItems}
+            showRoomLink
+            compact
+          />
+        )}
+      </section>
 
       <div className="flex flex-wrap gap-2">
         <QuickChip href="/app/chat">{t("nav.messages")}</QuickChip>
@@ -301,6 +387,30 @@ export default function PortalHomePage() {
           ›
         </span>
       </Link>
+
+      {networkPeople.length > 0 ? (
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <SectionLabel>{t("home.networkPeople")}</SectionLabel>
+              <p className="text-xs text-ink-mute">{t("home.networkPeopleHint")}</p>
+            </div>
+            <Link
+              href="/app/discover"
+              className="text-xs font-bold text-brand-600"
+            >
+              {t("common.seeAll")}
+            </Link>
+          </div>
+          <ul className="space-y-2">
+            {networkPeople.map((u) => (
+              <li key={u.userId}>
+                <NetworkInviteeRow person={u} compact />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <ViralGrowthCard engagement={engagement.data} />
 

@@ -15,6 +15,8 @@ import {
   PageHeader,
   statusTone,
 } from "@/lib/ui";
+import { MemberAvatar } from "@/components/member-avatar";
+import { memberDisplayName } from "@/lib/member-display";
 
 type Invitation = {
   id?: string;
@@ -33,6 +35,9 @@ type Invitee = {
   score?: number;
   algorithm?: string;
   displayLabel?: string;
+  displayName?: string;
+  fullName?: string;
+  avatar?: string | null;
 };
 
 type Tab = "received" | "sent";
@@ -137,12 +142,15 @@ export default function InvitationsPage() {
           </h2>
           <p className="text-xs text-ink-mute">{t("discover.whoInviteHint")}</p>
           <ul className="space-y-2">
-            {inviteeList.map((u) => (
+            {inviteeList.map((u) => {
+              const name = memberDisplayName(u, t("common.member"));
+              return (
               <li
                 key={u.userId}
                 className="flex flex-wrap items-center gap-2 rounded-xl bg-white/80 px-3 py-2"
               >
-                <span className="font-semibold">{u.displayLabel ?? "?"}</span>
+                <MemberAvatar name={name} avatarUrl={u.avatar} size="sm" />
+                <span className="font-semibold">{name}</span>
                 <span className="text-xs text-ink-mute">
                   {u.score != null
                     ? `${(Number(u.score) * 100).toFixed(0)}%`
@@ -162,7 +170,8 @@ export default function InvitationsPage() {
                   {t("discover.inviteOnPot")}
                 </Link>
               </li>
-            ))}
+            );
+            })}
           </ul>
         </section>
       )}

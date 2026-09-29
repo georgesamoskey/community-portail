@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { MemberAvatar } from "@/components/member-avatar";
 import { cx } from "@/lib/cx";
 import { formatDateTime } from "@/lib/ui";
 
@@ -12,6 +13,9 @@ export type LiveActivityItem = {
   tontineId?: string | null;
   eventType?: string;
   content?: string;
+  actorUserId?: string | null;
+  actorName?: string | null;
+  actorAvatar?: string | null;
   createdAt?: string;
 };
 
@@ -95,14 +99,26 @@ export function LiveActivityList({
             )}
           >
             <div className="flex items-start gap-2">
-              <span className="shrink-0" aria-hidden>
-                {iconFor(it.eventType)}
-              </span>
+              {it.actorName ? (
+                <MemberAvatar
+                  name={it.actorName}
+                  avatarUrl={it.actorAvatar}
+                  size="sm"
+                  className="mt-0.5 shrink-0"
+                />
+              ) : (
+                <span className="shrink-0" aria-hidden>
+                  {iconFor(it.eventType)}
+                </span>
+              )}
               <div className="min-w-0 flex-1">
                 {showRoomLink && it.roomName ? (
                   <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">
                     {it.roomName}
                   </p>
+                ) : null}
+                {it.actorName ? (
+                  <p className="text-[11px] font-bold opacity-80">{it.actorName}</p>
                 ) : null}
                 <p className="font-medium leading-snug">{it.content}</p>
                 {it.createdAt ? (

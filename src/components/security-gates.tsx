@@ -33,6 +33,27 @@ export function SessionLockGate({ children }: { children: React.ReactNode }) {
     const enabled = localStorage.getItem(LOCK_KEY) === "1";
     const cred = localStorage.getItem(CRED_KEY);
     if (enabled && cred) setLocked(true);
+    const onIdle = () => {
+      if (localStorage.getItem(LOCK_KEY) === "1" && localStorage.getItem(CRED_KEY)) {
+        setLocked(true);
+      }
+    };
+    window.addEventListener("akiba-idle-lock", onIdle);
+    const onVis = () => {
+      if (
+        document.visibilityState === "visible" &&
+        localStorage.getItem(LOCK_KEY) === "1" &&
+        localStorage.getItem(CRED_KEY) &&
+        localStorage.getItem("akiba-lock-on-resume") !== "0"
+      ) {
+        setLocked(true);
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("akiba-idle-lock", onIdle);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
   const unlock = useCallback(async () => {
@@ -71,7 +92,7 @@ export function SessionLockGate({ children }: { children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background px-6">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/icon.png" alt="" className="mb-6 h-16 w-16 rounded-2xl" />
+      <img src="/icons/icon-192.png" alt="" className="mb-6 h-16 w-16 rounded-2xl" />
       <h1 className="font-display text-xl font-bold text-ink">
         {t("security.lockTitle")}
       </h1>

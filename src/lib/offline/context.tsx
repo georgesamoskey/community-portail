@@ -61,9 +61,17 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
     const unsub = subscribeOfflineSync(() => {
       void refresh();
     });
+    const onMsg = (event: MessageEvent) => {
+      const type = (event.data as { type?: string } | null)?.type;
+      if (type === "AKIBA_FLUSH_SYNC" || type === "AKIBA_PERIODIC_SYNC") {
+        void flushPendingSync().then(() => refresh());
+      }
+    };
+    navigator.serviceWorker?.addEventListener("message", onMsg);
     return () => {
       stop();
       unsub();
+      navigator.serviceWorker?.removeEventListener("message", onMsg);
     };
   }, [refresh]);
 

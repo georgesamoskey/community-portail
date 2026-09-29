@@ -11,12 +11,14 @@ import {
   authInputClass,
 } from "@/components/auth-shell";
 import { useI18n } from "@/lib/i18n/context";
-import { COUNTRY_META, type CountryCode } from "@/lib/i18n/config";
+import { COUNTRY_META } from "@/lib/i18n/config";
+import { CountrySelect } from "@/components/country-select";
 import {
   forgotPassword,
   PublicAuthError,
   resetPassword,
 } from "@/lib/public-auth";
+import { useOtpResendCooldown } from "@/lib/use-otp-resend-cooldown";
 
 function ForgotInner() {
   const { t, country, setCountry } = useI18n();
@@ -30,14 +32,17 @@ function ForgotInner() {
   const [devHint, setDevHint] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { secondsLeft, canResend, arm } = useOtpResendCooldown();
 
   const sendCode = async () => {
+    if (step === 1 && !canResend) return;
     setBusy(true);
     setError(null);
     try {
       const res = await forgotPassword(phone.trim(), country);
       const id = res.requestId ?? "";
       setOtpRequestId(id);
+      arm(res.resendAfter);
       if (res.devCode) setDevHint(`${t("register.devCode")}: ${res.devCode}`);
       setStep(1);
     } catch (e) {
@@ -88,17 +93,11 @@ function ForgotInner() {
       {step === 0 ? (
         <div className="space-y-4">
           <AuthField label={t("common.country")}>
-            <select
-              className={authInputClass}
+            <CountrySelect
               value={country}
-              onChange={(e) => setCountry(e.target.value as CountryCode)}
-            >
-              {(Object.keys(COUNTRY_META) as CountryCode[]).map((c) => (
-                <option key={c} value={c}>
-                  {COUNTRY_META[c].dial} · {COUNTRY_META[c].name}
-                </option>
-              ))}
-            </select>
+              onChange={setCountry}
+              className={`${authInputClass} !pl-10`}
+            />
           </AuthField>
           <AuthField label={t("auth.phone")}>
             <input
@@ -162,6 +161,16 @@ function ForgotInner() {
             onClick={() => void onReset()}
           >
             {busy ? t("common.loading") : t("forgot.reset")}
+          </button>
+          <button
+            type="button"
+            className={authBtnSecondaryClass}
+            disabled={busy || !canResend}
+            onClick={() => void sendCode()}
+          >
+            {canResend
+              ? t("auth.resendOtp")
+              : t("auth.resendWait", { seconds: secondsLeft })}
           </button>
           <button
             type="button"

@@ -1,10 +1,14 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { useI18n } from "@/lib/i18n/context";
 import { useBff } from "@/lib/use-bff";
 import { useAction } from "@/lib/use-action";
 import { normalizeList } from "@/lib/portal-api";
+import { MemberAvatar } from "@/components/member-avatar";
+import { cx } from "@/lib/cx";
 import {
   Alert,
   Badge,
@@ -24,26 +28,79 @@ type BadgeRow = {
 };
 
 type LeaderRow = {
+  rank?: number;
   userId?: string;
   id?: string;
   totalPoints?: number;
   points?: number;
   currentStreak?: number;
+  longestStreak?: number;
   level?: number;
+  badgeCount?: number;
   firstName?: string;
   lastName?: string;
   fullName?: string;
+  avatar?: string | null;
 };
+
+type ChallengeRow = {
+  id?: string;
+  type?: string;
+  title?: string;
+  description?: string;
+  target?: number;
+  progress?: number;
+  reward?: number;
+  expiresAt?: string;
+  startedAt?: string;
+};
+
+function leaderName(r: LeaderRow, fallback: string) {
+  return (
+    r.fullName ||
+    `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() ||
+    (r.userId ?? r.id)?.slice(0, 8) ||
+    fallback
+  );
+}
+
+function challengeTone(type?: string) {
+  const t = (type ?? "").toLowerCase();
+  if (t === "daily") return "bg-mint-50 text-mint-900 ring-mint-200";
+  if (t === "weekly") return "bg-brand-50 text-brand-900 ring-brand-200";
+  if (t === "monthly") return "bg-violet-50 text-violet-900 ring-violet-200";
+  return "bg-amber-50 text-amber-900 ring-amber-200";
+}
+
+function daysLeft(iso?: string) {
+  if (!iso) return null;
+  const ms = Date.parse(iso) - Date.now();
+  if (!Number.isFinite(ms)) return null;
+  if (ms <= 0) return 0;
+  return Math.ceil(ms / 86_400_000);
+}
 
 export default function EngagementPage() {
   const { t } = useI18n();
-  const me = useBff<Record<string, unknown>>("/engagement/me");
+  const { data: session } = useSession();
+  const me = useBff<{
+    level?: number;
+    totalPoints?: number;
+    currentStreak?: number;
+    longestStreak?: number;
+    streakAtRisk?: boolean;
+    engagementScore?: number;
+    id?: string;
+    userId?: string;
+  }>("/engagement/me");
   const badges = useBff<{ badges?: BadgeRow[]; earned?: number; total?: number }>(
     "/engagement/me/badges",
   );
-  const challenges = useBff<{ active?: unknown[]; completed?: unknown[] }>(
-    "/engagement/me/challenges",
-  );
+  const challenges = useBff<{
+    active?: ChallengeRow[];
+    completed?: number;
+    completedCount?: number;
+  }>("/engagement/me/challenges");
   const board = useBff<unknown>("/engagement/leaderboard?limit=20");
   const streaks = useBff<unknown>("/engagement/leaderboard/streaks?limit=20");
   const credit = useBff<{
@@ -68,27 +125,46 @@ export default function EngagementPage() {
   } | null>("/engagement/me/notifications/preview");
   const action = useAction();
 
-  const boardList = useMemo(
-    () =>
-      normalizeList<LeaderRow>(board.data, [
-        "items",
-        "leaderboard",
-        "data",
-        "results",
-      ]),
-    [board.data],
-  );
-  const streakList = useMemo(
-    () =>
-      normalizeList<LeaderRow>(streaks.data, [
-        "items",
-        "leaderboard",
-        "data",
-        "results",
-      ]),
-    [streaks.data],
-  );
+  const myUserId =
+    (me.data as { userId?: string } | undefined)?.userId ??
+    session?.user?.id ??
+    undefined;
+
+  const boardList = useMemo(() => {
+    const list = Array.isArray(board.data)
+      ? (board.data as LeaderRow[])
+      : normalizeList<LeaderRow>(board.data, [
+          "items",
+          "leaderboard",
+          "data",
+          "results",
+        ]);
+    return list;
+  }, [board.data]);
+
+  const streakList = useMemo(() => {
+    const list = Array.isArray(streaks.data)
+      ? (streaks.data as LeaderRow[])
+      : normalizeList<LeaderRow>(streaks.data, [
+          "items",
+          "leaderboard",
+          "data",
+          "results",
+        ]);
+    return list;
+  }, [streaks.data]);
+
+  const activeChallenges = useMemo(() => {
+    const raw = challenges.data?.active;
+    return Array.isArray(raw) ? raw : [];
+  }, [challenges.data]);
+
   const badgeList = badges.data?.badges ?? [];
+  const completedCount =
+    challenges.data?.completedCount ??
+    (typeof challenges.data?.completed === "number"
+      ? challenges.data.completed
+      : 0);
 
   const protect = () =>
     void action.mutate<{ success?: boolean; message?: string }>(
@@ -106,6 +182,12 @@ export default function EngagementPage() {
   const points = me.data?.totalPoints;
   const streak = me.data?.currentStreak;
   const atRisk = me.data?.streakAtRisk;
+
+  const myStreakRank = useMemo(() => {
+    if (!myUserId) return null;
+    const idx = streakList.findIndex((r) => r.userId === myUserId);
+    return idx >= 0 ? idx + 1 : null;
+  }, [streakList, myUserId]);
 
   const statCards = [
     { label: t("engagement.level"), value: me.loading ? "…" : String(level ?? "—") },
@@ -128,7 +210,15 @@ export default function EngagementPage() {
         title={t("engagement.title")}
         description={t("engagement.desc")}
         actions={
-          <Btn variant="secondary" onClick={() => void me.refresh()}>
+          <Btn
+            variant="secondary"
+            onClick={() => {
+              void me.refresh();
+              void challenges.refresh();
+              void board.refresh();
+              void streaks.refresh();
+            }}
+          >
             {t("common.refresh")}
           </Btn>
         }
@@ -161,6 +251,7 @@ export default function EngagementPage() {
         <p className="text-sm text-ink-mute">
           {t("engagement.longest")} {String(me.data?.longestStreak ?? "—")}
           {atRisk ? ` ${t("engagement.atRisk")}` : ""}
+          {myStreakRank ? ` · #${myStreakRank}` : ""}
         </p>
         <Btn className="mt-3" onClick={protect} disabled={action.busy}>
           {t("engagement.protect")}
@@ -284,70 +375,202 @@ export default function EngagementPage() {
         )}
       </Panel>
 
+      <Panel title={t("engagement.challenges")}>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold text-ink-mute">
+            {t("engagement.challengesDone", { n: completedCount })}
+          </p>
+        </div>
+        {challenges.loading && (
+          <p className="text-sm text-ink-mute">{t("common.loading")}</p>
+        )}
+        {challenges.error && <Alert>{challenges.error}</Alert>}
+        {!challenges.loading && activeChallenges.length === 0 ? (
+          <EmptyState>{t("engagement.challengesEmpty")}</EmptyState>
+        ) : (
+          <ul className="space-y-3">
+            {activeChallenges.map((c) => {
+              const target = Math.max(1, c.target ?? 1);
+              const progress = Math.min(target, Math.max(0, c.progress ?? 0));
+              const pct = Math.round((progress / target) * 100);
+              const left = daysLeft(c.expiresAt);
+              const typeKey = (c.type ?? "special").toLowerCase();
+              const typeLabel = t(`engagement.challengeType.${typeKey}`);
+              return (
+                <li
+                  key={c.id ?? `${c.title}-${c.startedAt}`}
+                  className="rounded-2xl border border-ink/[0.06] bg-surface p-4 shadow-soft"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={cx(
+                            "rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1",
+                            challengeTone(c.type),
+                          )}
+                        >
+                          {typeLabel}
+                        </span>
+                        {left != null ? (
+                          <span className="text-[11px] font-medium text-ink-faint">
+                            {left === 0
+                              ? t("engagement.expiresToday")
+                              : t("engagement.expiresIn", { n: left })}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1.5 font-display text-base font-bold text-ink">
+                        {c.title ?? c.id}
+                      </p>
+                      <p className="mt-0.5 text-sm text-ink-mute">
+                        {c.description}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-xl bg-mint-100 px-2.5 py-1 text-xs font-bold text-mint-900">
+                      +{c.reward ?? 0} pts
+                    </span>
+                  </div>
+                  <div className="mt-3">
+                    <div className="mb-1 flex justify-between text-[11px] font-semibold text-ink-mute">
+                      <span>
+                        {progress}/{target}
+                      </span>
+                      <span>{pct}%</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-ink/[0.06]">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-brand-500 to-mint-500 transition-[width]"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                  {(c.id ?? "").includes("invite") ? (
+                    <Link
+                      href="/app/invitations"
+                      className="mt-3 inline-flex text-xs font-bold text-brand-600 hover:underline"
+                    >
+                      {t("engagement.challengeInviteCta")} →
+                    </Link>
+                  ) : (c.id ?? "").includes("contribution") ||
+                    (c.id ?? "").includes("cotis") ? (
+                    <Link
+                      href="/app/contributions"
+                      className="mt-3 inline-flex text-xs font-bold text-brand-600 hover:underline"
+                    >
+                      {t("engagement.challengeContributeCta")} →
+                    </Link>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Panel>
+
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title={t("engagement.challenges")}>
-          {challenges.loading && (
+        <Panel title={t("engagement.lbPoints")}>
+          {board.loading && (
             <p className="text-sm text-ink-mute">{t("common.loading")}</p>
           )}
-          <pre className="max-h-56 overflow-auto rounded-xl bg-surface-sunken/50 p-3 text-xs">
-            {JSON.stringify(challenges.data ?? {}, null, 2)}
-          </pre>
-        </Panel>
-        <Panel title={t("engagement.lbPoints")}>
-          {board.loading && <p className="text-sm text-ink-mute">…</p>}
           {boardList.length === 0 && !board.loading ? (
             <EmptyState>{t("engagement.lbEmpty")}</EmptyState>
           ) : (
             <ol className="space-y-2">
-              {boardList.map((r, i) => (
-                <li
-                  key={r.userId ?? r.id ?? i}
-                  className="flex justify-between text-sm"
-                >
-                  <span>
-                    #{i + 1}{" "}
-                    {r.fullName ??
-                      (`${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() ||
-                        (r.userId ?? r.id)?.slice(0, 8) ||
-                        "—")}
-                  </span>
-                  <span className="font-semibold">
-                    {t("engagement.pts", {
-                      n: r.totalPoints ?? r.points ?? "—",
-                    })}
-                  </span>
-                </li>
-              ))}
+              {boardList.map((r, i) => {
+                const name = leaderName(r, t("common.member"));
+                const mine = myUserId && r.userId === myUserId;
+                return (
+                  <li
+                    key={r.userId ?? r.id ?? i}
+                    className={cx(
+                      "flex items-center gap-3 rounded-xl px-2 py-2 text-sm",
+                      mine && "bg-brand-50 ring-1 ring-brand-200",
+                    )}
+                  >
+                    <span className="w-6 shrink-0 text-center text-xs font-bold text-ink-faint">
+                      #{r.rank ?? i + 1}
+                    </span>
+                    <MemberAvatar
+                      name={name}
+                      avatarUrl={r.avatar}
+                      size="sm"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-ink">
+                        {name}
+                        {mine ? ` · ${t("engagement.you")}` : ""}
+                      </p>
+                      <p className="text-[11px] text-ink-mute">
+                        {t("engagement.levelShort", { n: r.level ?? 0 })}
+                        {r.badgeCount
+                          ? ` · ${t("engagement.badgeCount", { n: r.badgeCount })}`
+                          : ""}
+                      </p>
+                    </div>
+                    <span className="shrink-0 font-bold tabular-nums text-ink">
+                      {t("engagement.pts", {
+                        n: r.totalPoints ?? r.points ?? 0,
+                      })}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </Panel>
+
+        <Panel title={t("engagement.lbStreaks")}>
+          {streaks.loading && (
+            <p className="text-sm text-ink-mute">{t("common.loading")}</p>
+          )}
+          {streakList.length === 0 && !streaks.loading ? (
+            <EmptyState>{t("engagement.noData")}</EmptyState>
+          ) : (
+            <ol className="space-y-2">
+              {streakList.map((r, i) => {
+                const name = leaderName(r, t("common.member"));
+                const mine = myUserId && r.userId === myUserId;
+                const days = r.currentStreak ?? 0;
+                return (
+                  <li
+                    key={r.userId ?? r.id ?? i}
+                    className={cx(
+                      "flex items-center gap-3 rounded-xl px-2 py-2 text-sm",
+                      mine && "bg-mint-50 ring-1 ring-mint-200",
+                      i === 0 && !mine && "bg-amber-50/60",
+                    )}
+                  >
+                    <span className="w-6 shrink-0 text-center text-xs font-bold text-ink-faint">
+                      {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${r.rank ?? i + 1}`}
+                    </span>
+                    <MemberAvatar
+                      name={name}
+                      avatarUrl={r.avatar}
+                      size="sm"
+                      trustRing={days > 0}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-ink">
+                        {name}
+                        {mine ? ` · ${t("engagement.you")}` : ""}
+                      </p>
+                      <p className="text-[11px] text-ink-mute">
+                        {t("engagement.longestShort", {
+                          n: r.longestStreak ?? days,
+                        })}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-lg bg-mint-100 px-2 py-1 text-xs font-bold tabular-nums text-mint-900">
+                      🔥 {t("engagement.days", { n: days })}
+                    </span>
+                  </li>
+                );
+              })}
             </ol>
           )}
         </Panel>
       </div>
-
-      <Panel title={t("engagement.lbStreaks")}>
-        {streakList.length === 0 && !streaks.loading ? (
-          <EmptyState>{t("engagement.noData")}</EmptyState>
-        ) : (
-          <ol className="space-y-2">
-            {streakList.map((r, i) => (
-              <li
-                key={r.userId ?? r.id ?? i}
-                className="flex justify-between text-sm"
-              >
-                <span>
-                  #{i + 1}{" "}
-                  {r.fullName ??
-                    (`${r.firstName ?? ""} ${r.lastName ?? ""}`.trim() ||
-                      (r.userId ?? r.id)?.slice(0, 8) ||
-                      "—")}
-                </span>
-                <span className="font-semibold">
-                  {t("engagement.days", { n: r.currentStreak ?? "—" })}
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </Panel>
     </div>
   );
 }

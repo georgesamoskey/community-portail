@@ -1,47 +1,229 @@
 {
+  "id": "/?source=pwa",
   "name": "Akiba One",
   "short_name": "Akiba One",
-  "description": "Épargne collective, tontines, chat et paiements Mobile Money — même hors ligne.",
-  "start_url": "/app",
+  "description": "Épargne collective, tontines ASCA, chat de groupe et paiements Mobile Money — disponible hors ligne.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "/app?utm_source=pwa&utm_medium=homescreen",
   "scope": "/",
   "display": "standalone",
+  "display_override": [
+    "standalone",
+    "window-controls-overlay",
+    "minimal-ui",
+    "browser"
+  ],
   "orientation": "portrait-primary",
-  "background_color": "#f4f8fc",
+  "background_color": "#337AB7",
   "theme_color": "#337AB7",
-  "lang": "fr",
-  "categories": ["finance", "social"],
+  "categories": ["finance", "social", "productivity", "business"],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "handle_links": "preferred",
+  "launch_handler": {
+    "client_mode": ["navigate-existing", "auto"]
+  },
+  "edge_side_panel": {
+    "preferred_width": 420
+  },
   "icons": [
     {
-      "src": "/icon.png",
+      "src": "/icons/icon-48.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon.png",
+      "src": "/icons/icon-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon.png",
+      "src": "/icons/maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "/icons/badge-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "monochrome"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/narrow-home.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Accueil Akiba One"
+    },
+    {
+      "src": "/screenshots/narrow-features.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Fonctionnalités mobiles"
+    },
+    {
+      "src": "/screenshots/wide-home.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Akiba One sur grand écran"
     }
   ],
   "shortcuts": [
     {
       "name": "Discussions",
       "short_name": "Chat",
-      "url": "/app/chat",
-      "icons": [{ "src": "/icon.png", "sizes": "192x192" }]
+      "description": "Ouvrir les conversations",
+      "url": "/app/chat?utm_source=pwa&utm_medium=shortcut",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     },
     {
       "name": "Cagnottes",
       "short_name": "Cotiser",
-      "url": "/app/contributions",
-      "icons": [{ "src": "/icon.png", "sizes": "192x192" }]
+      "description": "Voir et cotiser aux cagnottes",
+      "url": "/app/contributions?utm_source=pwa&utm_medium=shortcut",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Tontines",
+      "short_name": "Tontines",
+      "description": "Gérer vos tontines ASCA",
+      "url": "/app/tontines?utm_source=pwa&utm_medium=shortcut",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Paiements",
+      "short_name": "Payer",
+      "description": "Mobile Money et paiements",
+      "url": "/app/payments?utm_source=pwa&utm_medium=shortcut",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "short_name": "Alertes",
+      "description": "Alertes cotisation et chat",
+      "url": "/app/notifications?utm_source=pwa&utm_medium=shortcut",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Profil",
+      "short_name": "Profil",
+      "description": "Compte et paramètres",
+      "url": "/app/profile?utm_source=pwa&utm_medium=shortcut",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+akiba",
+      "url": "/auth/bridge?uri=%s"
     }
   ]
 }

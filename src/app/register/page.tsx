@@ -13,12 +13,14 @@ import {
 } from "@/components/auth-shell";
 import { useI18n } from "@/lib/i18n/context";
 import { COUNTRY_META, type CountryCode } from "@/lib/i18n/config";
+import { CountrySelect } from "@/components/country-select";
 import {
   PublicAuthError,
   registerAccount,
   requestOtp,
   resendOtp,
 } from "@/lib/public-auth";
+import { useOtpResendCooldown } from "@/lib/use-otp-resend-cooldown";
 
 function RegisterInner() {
   const { t, country, setCountry } = useI18n();
@@ -36,6 +38,7 @@ function RegisterInner() {
   const [devHint, setDevHint] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { secondsLeft, canResend, arm } = useOtpResendCooldown();
 
   useEffect(() => {
     const c = params.get("country");
@@ -48,6 +51,7 @@ function RegisterInner() {
     try {
       const res = await requestOtp(phone.trim(), country);
       setOtpRequestId(res.requestId);
+      arm(res.resendAfter);
       if (res.devCode) setDevHint(`${t("register.devCode")}: ${res.devCode}`);
       setStep(1);
     } catch (e) {
@@ -134,17 +138,11 @@ function RegisterInner() {
             </AuthField>
           </div>
           <AuthField label={t("common.country")}>
-            <select
-              className={authInputClass}
+            <CountrySelect
               value={country}
-              onChange={(e) => setCountry(e.target.value as CountryCode)}
-            >
-              {(Object.keys(COUNTRY_META) as CountryCode[]).map((c) => (
-                <option key={c} value={c}>
-                  {COUNTRY_META[c].dial} · {COUNTRY_META[c].name}
-                </option>
-              ))}
-            </select>
+              onChange={setCountry}
+              className={`${authInputClass} !pl-10`}
+            />
           </AuthField>
           <AuthField label={t("auth.phone")}>
             <input
@@ -233,10 +231,15 @@ function RegisterInner() {
           <button
             type="button"
             className={authBtnSecondaryClass}
-            disabled={busy}
-            onClick={() =>
+            disabled={busy || !canResend}
+            onClick={() => {
+              if (!canResend) return;
+              setBusy(true);
+              setError(null);
               void resendOtp(phone.trim(), otpRequestId, country)
                 .then((r) => {
+                  setOtpRequestId(r.requestId);
+                  arm(r.resendAfter);
                   if (r.devCode)
                     setDevHint(`${t("register.devCode")}: ${r.devCode}`);
                 })
@@ -245,9 +248,12 @@ function RegisterInner() {
                     e instanceof PublicAuthError ? e.message : t("common.error"),
                   ),
                 )
-            }
+                .finally(() => setBusy(false));
+            }}
           >
-            {t("register.resendOtp")}
+            {canResend
+              ? t("register.resendOtp")
+              : t("auth.resendWait", { seconds: secondsLeft })}
           </button>
           <button
             type="button"

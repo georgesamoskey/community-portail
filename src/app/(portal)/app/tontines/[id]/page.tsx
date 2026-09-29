@@ -23,6 +23,8 @@ import {
 import { markChecklist } from "@/lib/retention";
 import { useI18n } from "@/lib/i18n/context";
 import { LocalDataHint } from "@/components/offline-ui";
+import { MemberAvatar } from "@/components/member-avatar";
+import { memberDisplayName } from "@/lib/member-display";
 
 type Member = {
   id?: string;
@@ -33,6 +35,8 @@ type Member = {
     id?: string;
     firstName?: string;
     lastName?: string;
+    fullName?: string;
+    avatar?: string | null;
     email?: string;
   };
 };
@@ -123,6 +127,21 @@ export default function TontineDetailPage() {
       normalizeList<Member>(ton, ["memberships", "members"]),
     [ton],
   );
+
+  const memberNameByUserId = useMemo(() => {
+    const map = new Map<string, Member>();
+    for (const m of members) {
+      const uid = m.userId ?? m.user?.id ?? m.id;
+      if (uid) map.set(uid, m);
+    }
+    return map;
+  }, [members]);
+
+  const labelForUserId = (userId?: string | null) => {
+    if (!userId) return t("common.member");
+    const m = memberNameByUserId.get(userId);
+    return memberDisplayName(m ?? { userId }, t("common.member"));
+  };
   const roundList = useMemo(() => {
     if (ton?.rounds?.length) return ton.rounds;
     return normalizeList<Round>(rounds.data, ["items", "rounds", "data"]);
@@ -734,7 +753,7 @@ export default function TontineDetailPage() {
                           className="grid gap-2 sm:grid-cols-3 text-sm"
                         >
                           <span className="text-xs text-ink-mute">
-                            {a.userId?.slice(0, 8)}… ·{" "}
+                            {labelForUserId(a.userId)} ·{" "}
                             {money(
                               a.balance,
                               asca.data?.currency ?? ton.currency ?? "BIF",
@@ -832,7 +851,7 @@ export default function TontineDetailPage() {
                           className="flex flex-wrap items-center gap-2 text-sm"
                         >
                           <span>
-                            {loan.borrowerUserId?.slice(0, 8)}… ·{" "}
+                            {labelForUserId(loan.borrowerUserId)} ·{" "}
                             {money(
                               loan.principal,
                               asca.data?.currency ?? ton.currency ?? "BIF",
@@ -969,7 +988,7 @@ export default function TontineDetailPage() {
                           className="flex flex-wrap items-center gap-2 text-sm"
                         >
                           <span>
-                            {loan.borrowerUserId?.slice(0, 8)}… ·{" "}
+                            {labelForUserId(loan.borrowerUserId)} ·{" "}
                             {money(
                               loan.principal,
                               asca.data?.currency ?? ton.currency ?? "BIF",
@@ -1078,22 +1097,28 @@ export default function TontineDetailPage() {
                 <ul className="divide-y divide-brand-100">
                   {members.map((m, i) => {
                     const uid = m.userId ?? m.user?.id ?? m.id;
-                    const label =
-                      `${m.user?.firstName ?? ""} ${m.user?.lastName ?? ""}`.trim() ||
-                      m.user?.email ||
-                      uid ||
-                      t("tontines.memberN", { n: i + 1 });
+                    const label = memberDisplayName(
+                      m,
+                      t("tontines.memberN", { n: i + 1 }),
+                    );
                     return (
                       <li
                         key={uid ?? i}
                         className="flex items-center justify-between gap-2 py-2 text-sm"
                       >
-                        <div>
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <MemberAvatar
+                            name={label}
+                            avatarUrl={m.user?.avatar}
+                            size="sm"
+                          />
+                          <div className="min-w-0">
                           <p className="font-medium text-brand-900">{label}</p>
                           <p className="text-xs text-brand-600">
                             {m.role ?? "member"}
                             {m.status ? ` · ${m.status}` : ""}
                           </p>
+                          </div>
                         </div>
                         {uid ? (
                           <Btn

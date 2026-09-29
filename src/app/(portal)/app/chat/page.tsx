@@ -16,7 +16,6 @@ import { useBff } from "@/lib/use-bff";
 import { useChatSocket } from "@/lib/use-chat-socket";
 import {
   chatSenderLabel,
-  initialsFrom,
   normalizeList,
   sortRoomsByActivity,
   type ChatMessage,
@@ -26,6 +25,11 @@ import { cx } from "@/lib/cx";
 import { useI18n } from "@/lib/i18n/context";
 import { formatDateTime } from "@/lib/ui";
 import { ChatEventCard } from "@/components/chat-event-card";
+import { MemberAvatar, MemberAvatarStack } from "@/components/member-avatar";
+import {
+  MemberTrustBadge,
+  type TrustSignals,
+} from "@/components/member-trust-badge";
 import {
   loadCachedMessages,
   saveCachedMessages,
@@ -37,6 +41,10 @@ import {
 } from "@/lib/chat-cache";
 import { ChatMediaBubble } from "@/components/chat-media-bubble";
 import { africaShareLinks } from "@/lib/africa-share";
+import { acquireWakeLock, releaseWakeLock } from "@/lib/native";
+import { VoiceRecordButton } from "@/components/voice-record-button";
+import { compressImage } from "@/lib/secure-store";
+import { SkeletonList } from "@/components/native-pro";
 
 const QUICK_REACTIONS = ["👍", "❤️", "👏", "🔥", "😂"];
 
@@ -64,19 +72,6 @@ function relativeTime(
   return formatDateTime(ts);
 }
 
-function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
-  const dim = size === "sm" ? "h-8 w-8 text-[10px]" : "h-10 w-10 text-xs";
-  return (
-    <span
-      className={cx(
-        "inline-flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 via-brand-600 to-mint-600 font-bold text-white shadow-soft",
-        dim,
-      )}
-    >
-      {initialsFrom(name) || "?"}
-    </span>
-  );
-}
 
 function ChatFallback() {
   const { t } = useI18n();
@@ -110,6 +105,27 @@ function ChatInner() {
 
   const roomsBff = useBff<ChatRoom[] | { items?: ChatRoom[] }>("/chat/rooms");
   const unread = useBff<{ count?: number }>("/chat/unread");
+  const engagement = useBff<{
+    currentStreak?: number;
+    level?: number;
+    streakAtRisk?: boolean;
+    stats?: { invitationsAccepted?: number };
+  }>("/engagement/me");
+  const referralBrief = useBff<{ acceptedCount?: number }>(
+    "/referral/me/cercle",
+  );
+  const myTrust = useMemo(() => {
+    const accepted =
+      referralBrief.data?.acceptedCount ??
+      engagement.data?.stats?.invitationsAccepted ??
+      0;
+    return {
+      currentStreak: engagement.data?.currentStreak,
+      level: engagement.data?.level,
+      streakAtRisk: engagement.data?.streakAtRisk,
+      ambassador: accepted >= 5,
+    };
+  }, [engagement.data, referralBrief.data]);
 
   const rooms = useMemo(() => {
     const list = Array.isArray(roomsBff.data)
@@ -135,6 +151,7 @@ function ChatInner() {
 
   const {
     connected,
+    status: wsStatus,
     error: wsError,
     liveMessages,
     clearLive,
@@ -142,7 +159,12 @@ function ChatInner() {
     joinRoom,
     emitTyping,
     markAsRead,
+    reconnect,
   } = useChatSocket(true);
+
+  const [trustByUser, setTrustByUser] = useState<
+    Record<string, TrustSignals>
+  >({});
 
   useEffect(() => {
     if (roomParam) {
@@ -152,6 +174,23 @@ function ChatInner() {
     }
     if (!selectedId && rooms[0]?.id) setSelectedId(rooms[0].id);
   }, [rooms, selectedId, roomParam]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    let alive = true;
+    void acquireWakeLock();
+    const onVis = () => {
+      if (document.visibilityState === "visible" && alive) {
+        void acquireWakeLock();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", onVis);
+      void releaseWakeLock();
+    };
+  }, [selectedId]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -276,6 +315,35 @@ function ChatInner() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, typing, selectedId]);
+
+  useEffect(() => {
+    const ids = [
+      ...new Set(
+        messages
+          .map((m) => m.senderId ?? m.sender?.id)
+          .filter((id): id is string => !!id),
+      ),
+    ].slice(0, 60);
+    if (!ids.length) return;
+    const missing = ids.filter((id) => !trustByUser[id]);
+    if (!missing.length) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await bffFetch<Record<string, TrustSignals>>(
+          `/engagement/trust/batch?ids=${missing.join(",")}`,
+        );
+        if (cancelled || !data || typeof data !== "object") return;
+        setTrustByUser((prev) => ({ ...prev, ...data }));
+      } catch {
+        /* optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- trustByUser lu pour skip cache
+  }, [messages]);
 
   const filteredRooms = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -584,22 +652,44 @@ function ChatInner() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span
+          <button
+            type="button"
+            onClick={() => {
+              if (wsStatus !== "connected") reconnect();
+            }}
             className={cx(
-              "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-[11px] font-bold",
-              connected
+              "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-[11px] font-bold transition",
+              wsStatus === "connected"
                 ? "bg-mint-100 text-mint-800"
-                : "bg-amber-100 text-amber-900",
+                : wsStatus === "offline" || wsStatus === "error"
+                  ? "bg-amber-100 text-amber-900"
+                  : "bg-brand-50 text-brand-800",
             )}
+            title={
+              wsStatus !== "connected" ? t("chat.retryWs") : t("chat.online")
+            }
           >
             <span
               className={cx(
-                "online-dot h-1.5 w-1.5 rounded-full",
-                connected ? "bg-mint-500" : "bg-amber-500",
+                "h-1.5 w-1.5 rounded-full",
+                wsStatus === "connected"
+                  ? "online-dot bg-mint-500"
+                  : wsStatus === "reconnecting" || wsStatus === "connecting"
+                    ? "animate-pulse bg-brand-500"
+                    : "bg-amber-500",
               )}
             />
-            {connected ? t("chat.online") : t("chat.offline")}
-          </span>
+            {wsStatus === "connected"
+              ? t("chat.online")
+              : wsStatus === "offline"
+                ? t("chat.offline")
+                : wsStatus === "reconnecting"
+                  ? t("chat.reconnecting")
+                  : wsStatus === "connecting"
+                    ? t("chat.connecting")
+                    : t("chat.retryWs")}
+          </button>
+          <MemberTrustBadge signals={myTrust} size="xs" />
           <button
             type="button"
             onClick={() => void roomsBff.refresh()}
@@ -611,9 +701,18 @@ function ChatInner() {
       </div>
 
       {(wsError || sendError) && (
-        <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-sm text-amber-950">
-          {sendError ?? wsError}
-        </p>
+        <div className="flex items-center justify-between gap-2 border-b border-amber-100 bg-amber-50 px-4 py-2 text-sm text-amber-950">
+          <p className="min-w-0 flex-1 truncate">{sendError ?? wsError}</p>
+          {wsError && !connected ? (
+            <button
+              type="button"
+              className="shrink-0 rounded-lg bg-amber-200/80 px-2.5 py-1 text-xs font-bold"
+              onClick={() => reconnect()}
+            >
+              {t("chat.retryWs")}
+            </button>
+          ) : null}
+        </div>
       )}
 
       <div className="grid min-h-0 flex-1 lg:grid-cols-[300px_1fr]">
@@ -671,19 +770,32 @@ function ChatInner() {
                 {filteredRooms.map((r) => {
                   const active = selectedId === r.id;
                   const label = r.name ?? t("chat.roomFallback", { id: r.id.slice(0, 8) });
+                  const faces = (r.members ?? [])
+                    .slice(0, 4)
+                    .map((m) => ({
+                      name:
+                        m.fullName ||
+                        `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() ||
+                        "Membre",
+                      avatarUrl: m.avatar,
+                    }));
                   return (
                     <li key={r.id}>
                       <button
                         type="button"
                         onClick={() => selectRoom(r.id)}
                         className={cx(
-                          "flex w-full items-center gap-3 px-3 py-3 text-left transition",
+                          "flex w-full items-center gap-3 px-3 py-3 text-left transition native-pressable",
                           active
                             ? "bg-surface shadow-soft ring-1 ring-inset ring-brand-200"
                             : "hover:bg-surface/80",
                         )}
                       >
-                        <Avatar name={label} />
+                        {faces.length >= 2 ? (
+                          <MemberAvatarStack members={faces} max={3} />
+                        ) : (
+                          <MemberAvatar name={label} avatarUrl={r.avatar} />
+                        )}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline justify-between gap-2">
                             <p className="truncate font-semibold text-ink">
@@ -727,13 +839,29 @@ function ChatInner() {
             </button>
             {selected || selectedId ? (
               <>
-                <Avatar
-                  name={selected?.name ?? selectedId?.slice(0, 8) ?? "?"}
+                <MemberAvatar
+                  name={selected?.name ?? t("chat.groupChat")}
+                  avatarUrl={selected?.avatar}
+                  online={connected}
+                  trustRing={(pulse.data?.circleStreakDays ?? 0) > 0}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-display text-lg font-bold tracking-tight text-ink">
-                    {selected?.name ?? t("chat.roomFallback", { id: selectedId?.slice(0, 8) ?? "" })}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate font-display text-lg font-bold tracking-tight text-ink">
+                      {selected?.name ?? t("chat.roomFallback", { id: selectedId?.slice(0, 8) ?? "" })}
+                    </p>
+                    {pulse.data?.circleStreakDays ? (
+                      <span
+                        className="rounded-md bg-mint-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-mint-900"
+                        title={t("chat.circleStreak", {
+                          n: pulse.data.circleStreakDays,
+                        })}
+                      >
+                        🔥 {pulse.data.circleStreakDays}j
+                      </span>
+                    ) : null}
+                    <MemberTrustBadge signals={myTrust} size="xs" />
+                  </div>
                   <p className="truncate text-xs text-ink-mute">
                     {typing
                       ? `${typing.userName ? `${typing.userName}…` : t("chat.typing")}`
@@ -741,12 +869,10 @@ function ChatInner() {
                           selected?.memberCount
                             ? t("chat.people", { n: selected.memberCount })
                             : null,
-                          pulse.data?.circleStreakDays
-                            ? `🔥 ${pulse.data.circleStreakDays}j`
-                            : null,
                           pulse.data?.progressPct != null
                             ? `${pulse.data.progressPct}%`
                             : null,
+                          connected ? t("chat.live") : null,
                         ]
                           .filter(Boolean)
                           .join(" · ") || t("chat.groupConvo")}
@@ -766,7 +892,7 @@ function ChatInner() {
             )}
           </header>
 
-          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4 sm:px-5">
+          <div className="chat-thread-scroll min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5">
             {!selectedId && (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-mint-600 text-white shadow-lift">
@@ -787,9 +913,9 @@ function ChatInner() {
               </div>
             )}
             {loadingMsg && (
-              <p className="text-center text-sm text-ink-mute">
-                {t("chat.loadingMsgs")}
-              </p>
+              <div className="space-y-3 p-2">
+                <SkeletonList n={3} />
+              </div>
             )}
             {!loadingMsg && messages.length === 0 && selectedId && (
               <div className="mx-auto max-w-sm rounded-2.5xl border border-dashed border-ink/10 bg-surface/80 p-6 text-center shadow-soft">
@@ -806,6 +932,10 @@ function ChatInner() {
                 !!myId &&
                 (m.senderId === myId || m.sender?.id === myId);
               const label = chatSenderLabel(m);
+              const senderKey = m.senderId ?? m.sender?.id ?? "";
+              const senderSignals: TrustSignals | null = mine
+                ? myTrust
+                : trustByUser[senderKey] ?? m.senderTrust ?? null;
               const prev = messages[idx - 1];
               const sameAuthor =
                 prev &&
@@ -819,6 +949,11 @@ function ChatInner() {
                   (reactionMap.get(r.reaction) ?? 0) + 1,
                 );
               }
+              const isTypingHere =
+                !!typing &&
+                !!senderKey &&
+                typing.userId === senderKey &&
+                !mine;
 
               if (isSystem) {
                 return (
@@ -845,16 +980,39 @@ function ChatInner() {
                   )}
                 >
                   {!mine && !sameAuthor ? (
-                    <Avatar name={label} size="sm" />
+                    <MemberAvatar
+                      name={label}
+                      avatarUrl={m.senderAvatar}
+                      size="sm"
+                      online={isTypingHere}
+                      trustRing={
+                        !!(
+                          senderSignals?.currentStreak ||
+                          senderSignals?.level ||
+                          senderSignals?.ambassador
+                        )
+                      }
+                    />
                   ) : (
                     <span className="w-8 shrink-0" />
                   )}
                   <div className="max-w-[min(85%,28rem)]">
                     {!mine && !sameAuthor && (
-                      <p className="mb-0.5 px-1 text-[11px] font-bold text-ink-soft">
-                        {label}
-                      </p>
+                      <div className="mb-0.5 flex flex-wrap items-center gap-1.5 px-1">
+                        <p className="text-[11px] font-bold text-ink-soft">
+                          {label}
+                        </p>
+                        <MemberTrustBadge
+                          signals={senderSignals}
+                          size="xs"
+                        />
+                      </div>
                     )}
+                    {mine && !sameAuthor ? (
+                      <div className="mb-0.5 flex justify-end px-1">
+                        <MemberTrustBadge signals={myTrust} size="xs" />
+                      </div>
+                    ) : null}
                     <div
                       className={cx(
                         "relative rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
@@ -1011,7 +1169,7 @@ function ChatInner() {
             <div ref={bottomRef} />
           </div>
 
-          <footer className="border-t border-ink/[0.06] bg-surface p-3 sm:p-4">
+          <footer className="chat-composer border-t border-ink/[0.06] bg-surface/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:p-4 sm:pb-4">
             {selectedId ? (
               <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1">
                 {QUICK_REPLIES_FR.map((q) => (
@@ -1152,11 +1310,21 @@ function ChatInner() {
                   disabled={!selectedId}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) void onSendFile(f);
+                    if (f) {
+                      void (async () => {
+                        const compressed = await compressImage(f);
+                        await onSendFile(compressed);
+                      })();
+                    }
                     e.target.value = "";
                   }}
                 />
               </label>
+              <VoiceRecordButton
+                disabled={!selectedId}
+                label={t("chat.voice") || "Vocal"}
+                onRecorded={(file) => void onSendFile(file)}
+              />
               <input
                 ref={inputRef}
                 className="flex-1 rounded-2xl border border-ink/[0.08] bg-surface-sunken/50 px-4 py-3 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-brand-400 focus:bg-surface focus:ring-2 focus:ring-brand-500/20"
