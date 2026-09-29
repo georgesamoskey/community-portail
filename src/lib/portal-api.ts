@@ -70,6 +70,7 @@ export type ChatMessage = {
   senderName?: string | null;
   senderAvatar?: string | null;
   senderTrust?: SenderTrust | null;
+  readBy?: Array<{ id?: string; fullName?: string | null }>;
   sender?: {
     id?: string;
     firstName?: string;

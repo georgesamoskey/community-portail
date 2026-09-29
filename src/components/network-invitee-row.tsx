@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { MemberAvatar } from "@/components/member-avatar";
+import {
+  MemberTrustBadge,
+  type TrustSignals,
+} from "@/components/member-trust-badge";
 import { memberDisplayName } from "@/lib/member-display";
 import { Btn } from "@/lib/ui";
 import { useI18n } from "@/lib/i18n/context";
@@ -21,11 +25,13 @@ export function NetworkInviteeRow({
   onMarkInvited,
   shareHref,
   compact,
+  trust,
 }: {
   person: NetworkInvitee;
   onMarkInvited?: () => void;
   shareHref?: string;
   compact?: boolean;
+  trust?: TrustSignals | null;
 }) {
   const { t } = useI18n();
   const name = memberDisplayName(person, t("common.member"));
@@ -42,9 +48,19 @@ export function NetworkInviteeRow({
           : "flex flex-wrap items-center gap-3 rounded-2xl border border-ink/[0.06] bg-surface p-3 shadow-soft sm:flex-nowrap"
       }
     >
-      <MemberAvatar name={name} avatarUrl={person.avatar} size={compact ? "sm" : "md"} />
+      <MemberAvatar
+        name={name}
+        avatarUrl={person.avatar}
+        size={compact ? "sm" : "md"}
+        trustRing={
+          !!(trust?.currentStreak || trust?.level || trust?.ambassador)
+        }
+      />
       <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold text-ink">{name}</p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <p className="truncate font-semibold text-ink">{name}</p>
+          <MemberTrustBadge signals={trust} size="xs" />
+        </div>
         <p className="text-xs text-ink-mute">
           {t("discover.networkMatch")}
           {scorePct != null ? ` · ${scorePct}%` : ""}

@@ -51,7 +51,13 @@ export function useChatSocket(enabled: boolean) {
     userId: string;
     userName?: string;
   } | null>(null);
+  const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>({});
+  const [roomOnlineIds, setRoomOnlineIds] = useState<string[]>([]);
+  const [readsByMessage, setReadsByMessage] = useState<
+    Record<string, string[]>
+  >({});
   const typingClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeRoomRef = useRef<string | null>(null);
 
   const bindSocket = useCallback((socket: Socket) => {
     socket.on("connect", () => {
@@ -158,6 +164,54 @@ export function useChatSocket(enabled: boolean) {
         } else {
           setTyping(null);
         }
+      },
+    );
+    socket.on(
+      "userPresence",
+      (p: { userId?: string; online?: boolean; roomId?: string }) => {
+        if (!p.userId) return;
+        setOnlineUsers((prev) => ({
+          ...prev,
+          [p.userId!]: !!p.online,
+        }));
+        if (
+          p.roomId &&
+          activeRoomRef.current &&
+          p.roomId !== activeRoomRef.current
+        ) {
+          return;
+        }
+        setRoomOnlineIds((prev) => {
+          if (p.online) {
+            return prev.includes(p.userId!) ? prev : [...prev, p.userId!];
+          }
+          return prev.filter((id) => id !== p.userId);
+        });
+      },
+    );
+    socket.on(
+      "roomPresence",
+      (p: { roomId?: string; onlineUserIds?: string[] }) => {
+        if (!Array.isArray(p.onlineUserIds)) return;
+        if (p.roomId && activeRoomRef.current && p.roomId !== activeRoomRef.current)
+          return;
+        setRoomOnlineIds(p.onlineUserIds);
+        setOnlineUsers((prev) => {
+          const next = { ...prev };
+          for (const id of p.onlineUserIds!) next[id] = true;
+          return next;
+        });
+      },
+    );
+    socket.on(
+      "messageRead",
+      (p: { messageId?: string; userId?: string }) => {
+        if (!p.messageId || !p.userId) return;
+        setReadsByMessage((prev) => {
+          const cur = prev[p.messageId!] ?? [];
+          if (cur.includes(p.userId!)) return prev;
+          return { ...prev, [p.messageId!]: [...cur, p.userId!] };
+        });
       },
     );
   }, []);
@@ -285,7 +339,23 @@ export function useChatSocket(enabled: boolean) {
   );
 
   const joinRoom = useCallback((roomId: string) => {
+    activeRoomRef.current = roomId;
+    setRoomOnlineIds([]);
     socketRef.current?.emit("joinRoom", { roomId });
+    socketRef.current?.emit(
+      "getRoomPresence",
+      { roomId },
+      (res: { onlineUserIds?: string[] } | undefined) => {
+        if (Array.isArray(res?.onlineUserIds)) {
+          setRoomOnlineIds(res.onlineUserIds);
+          setOnlineUsers((prev) => {
+            const next = { ...prev };
+            for (const id of res.onlineUserIds!) next[id] = true;
+            return next;
+          });
+        }
+      },
+    );
   }, []);
 
   const emitTyping = useCallback((roomId: string, isTyping: boolean) => {
@@ -303,6 +373,9 @@ export function useChatSocket(enabled: boolean) {
     liveMessages,
     clearLive,
     typing,
+    onlineUsers,
+    roomOnlineIds,
+    readsByMessage,
     sendMessage,
     joinRoom,
     emitTyping,

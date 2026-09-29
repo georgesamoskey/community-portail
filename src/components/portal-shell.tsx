@@ -15,6 +15,7 @@ import {
   PwaInstallPrompt,
   SyncStatusChip,
 } from "@/components/offline-ui";
+import { ContextualPushPrompt } from "@/components/push-prompt";
 import { OfflineQueuePanel } from "@/components/native-pro";
 import { NativeRuntime } from "@/components/native-runtime";
 import {
@@ -199,6 +200,24 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const moreActive = MORE_NAV.some((item) => isActive(item.href));
   const moreInviteBadge = unreadCount > 0;
 
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        void refreshNotif();
+        void refreshChat();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    const id = window.setInterval(() => {
+      void refreshNotif();
+      void refreshChat();
+    }, 45_000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.clearInterval(id);
+    };
+  }, [refreshNotif, refreshChat]);
+
   const onPullRefresh = useCallback(async () => {
     router.refresh();
     await Promise.all([refreshNotif(), refreshChat()]);
@@ -373,6 +392,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       </PullToRefresh>
 
       <PwaInstallPrompt />
+      <ContextualPushPrompt />
 
       {/* Handle « Plus » — swipe-up native au-dessus du dock */}
       <button

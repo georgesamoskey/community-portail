@@ -16,7 +16,9 @@ import {
   statusTone,
 } from "@/lib/ui";
 import { MemberAvatar } from "@/components/member-avatar";
+import { MemberTrustBadge } from "@/components/member-trust-badge";
 import { memberDisplayName } from "@/lib/member-display";
+import { useTrustBatch } from "@/lib/use-trust-batch";
 
 type Invitation = {
   id?: string;
@@ -64,6 +66,8 @@ export default function InvitationsPage() {
       : normalizeList<Invitee>(invitees.data, ["items", "invitees", "data"]);
     return raw.filter((u) => u.userId && !marked.has(u.userId));
   }, [invitees.data, marked]);
+
+  const trustByUser = useTrustBatch(inviteeList.map((u) => u.userId));
 
   const accept = (inv: Invitation) => {
     if (inv.token) {
@@ -149,8 +153,22 @@ export default function InvitationsPage() {
                 key={u.userId}
                 className="flex flex-wrap items-center gap-2 rounded-xl bg-white/80 px-3 py-2"
               >
-                <MemberAvatar name={name} avatarUrl={u.avatar} size="sm" />
+                <MemberAvatar
+                  name={name}
+                  avatarUrl={u.avatar}
+                  size="sm"
+                  trustRing={
+                    !!(
+                      trustByUser[u.userId!]?.currentStreak ||
+                      trustByUser[u.userId!]?.level
+                    )
+                  }
+                />
                 <span className="font-semibold">{name}</span>
+                <MemberTrustBadge
+                  signals={u.userId ? trustByUser[u.userId] : null}
+                  size="xs"
+                />
                 <span className="text-xs text-ink-mute">
                   {u.score != null
                     ? `${(Number(u.score) * 100).toFixed(0)}%`

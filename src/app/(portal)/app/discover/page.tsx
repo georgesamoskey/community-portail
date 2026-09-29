@@ -12,6 +12,7 @@ import {
 } from "@/components/network-invitee-row";
 import { CountryBadge } from "@/components/country-select";
 import { Alert, Badge, EmptyState, money, PageHeader } from "@/lib/ui";
+import { useTrustBatch } from "@/lib/use-trust-batch";
 
 type Row = {
   id?: string;
@@ -79,6 +80,8 @@ export default function DiscoverPage() {
       : normalizeList<Invitee>(invitees.data, ["items", "invitees", "data"]);
     return raw.filter((u) => u.userId && !invitedMarked.has(u.userId));
   }, [invitees.data, invitedMarked]);
+
+  const trustByUser = useTrustBatch(inviteeList.map((u) => u.userId));
 
   const onClickReco = (
     kind: "contribution" | "tontine",
@@ -180,6 +183,7 @@ export default function DiscoverPage() {
                   person={u}
                   onMarkInvited={() => markInviteSent(u)}
                   shareHref="/app/contributions"
+                  trust={u.userId ? trustByUser[u.userId] : null}
                 />
               </li>
             ))}

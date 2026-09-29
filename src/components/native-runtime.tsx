@@ -48,6 +48,22 @@ export function NativeRuntime({ badgeCount = 0 }: { badgeCount?: number }) {
   }, [badgeCount]);
 
   useEffect(() => {
+    if (pathname.startsWith("/app/chat") || pathname.startsWith("/app/notifications")) {
+      void clearAppBadge();
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        void setAppBadge(badgeCount);
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [badgeCount]);
+
+  useEffect(() => {
     const onOnline = () => {
       if (!wasOnline.current) {
         pushToast(t("native.backOnline"), "ok");

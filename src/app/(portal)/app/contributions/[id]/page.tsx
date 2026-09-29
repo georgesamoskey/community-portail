@@ -26,6 +26,11 @@ import { useI18n } from "@/lib/i18n/context";
 import { useOffline } from "@/lib/offline/context";
 import { LiveActivityList, type LiveActivityItem } from "@/components/live-activity-list";
 import { LocalDataHint } from "@/components/offline-ui";
+import { MemberAvatar } from "@/components/member-avatar";
+import { MemberTrustBadge } from "@/components/member-trust-badge";
+import { useTrustBatch } from "@/lib/use-trust-batch";
+import { markPushMoment } from "@/components/push-prompt";
+import { memberDisplayName } from "@/lib/member-display";
 
 type Contribution = {
   id?: string;
@@ -151,9 +156,23 @@ function ContributionDetailInner() {
   const [inviteLinks, setInviteLinks] = useState<unknown[]>([]);
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
   const [participants, setParticipants] = useState<
-    Array<{ id?: string; userId?: string; role?: string; fullName?: string }>
+    Array<{
+      id?: string;
+      userId?: string;
+      role?: string;
+      fullName?: string;
+      avatar?: string | null;
+    }>
   >([]);
-  const [mmFee, setMmFee] = useState<unknown>(null);
+  const trustByUser = useTrustBatch(
+    participants.map((p) => p.userId ?? p.id),
+  );
+  const [mmFee, setMmFee] = useState<{
+    fee?: number;
+    total?: number;
+    amount?: number;
+    currency?: string;
+  } | null>(null);
   const [roleUserId, setRoleUserId] = useState("");
   const [roleValue, setRoleValue] = useState("member");
   const [extraInsight, setExtraInsight] = useState<{
@@ -170,6 +189,41 @@ function ContributionDetailInner() {
     if (declareOnLaunch) setTab("pay");
     else if (highlightCotisation) setTab("money");
   }, [declareOnLaunch, highlightCotisation]);
+
+  // Préremplir MM : montant unique, 1er provider, téléphone du profil
+  useEffect(() => {
+    setMmAmount(montant);
+  }, [montant]);
+
+  useEffect(() => {
+    if (mmProvider || !providerList.length) return;
+    const slug = providerList[0]?.slug ?? providerList[0]?.id ?? "";
+    if (slug) setMmProvider(slug);
+  }, [providerList, mmProvider]);
+
+  useEffect(() => {
+    if (mmPhone) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const me = await bffFetch<{
+          id?: string;
+          phone?: string;
+          phoneNumber?: string;
+        }>("/users/me");
+        if (cancelled) return;
+        if (me?.id && !payerUserId) setPayerUserId(me.id);
+        const phone = me?.phone ?? me?.phoneNumber ?? "";
+        if (phone) setMmPhone(phone);
+      } catch {
+        /* optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const defaultPayoutReason = t("pots.defaultPayout");
   const effectivePayoutReason = payoutReason || defaultPayoutReason;
@@ -256,10 +310,14 @@ function ContributionDetailInner() {
           }),
         });
         markChecklist("paid_or_cotised");
+        markPushMoment("pay");
         reload();
         return { queued: false };
       } catch (e) {
-        if (e instanceof BffError && (e.status === 0 || e.code === "NETWORK_ERROR")) {
+        if (
+          e instanceof BffError &&
+          (e.status === 0 || e.code === "NETWORK_ERROR")
+        ) {
           await offline.enqueueCotisation(mmPayload);
           markChecklist("paid_or_cotised");
           return { queued: true };
@@ -461,10 +519,19 @@ function ContributionDetailInner() {
         amount: mmAmount,
         payerPhone: mmPhone || "",
       });
-      const data = await bffFetch(
-        `/contributions/${id}/mobile-money/fee-preview?${q}`,
-      );
-      setMmFee(data);
+      const data = await bffFetch<{
+        fee?: number;
+        fees?: number;
+        total?: number;
+        amount?: number;
+        currency?: string;
+      }>(`/contributions/${id}/mobile-money/fee-preview?${q}`);
+      setMmFee({
+        fee: data.fee ?? data.fees,
+        total: data.total,
+        amount: data.amount,
+        currency: data.currency,
+      });
       return data;
     }, { success: t("pots.okFees") });
 
@@ -837,12 +904,16 @@ function ContributionDetailInner() {
                 </Alert>
               ) : (
                 <div className="grid gap-3">
+                  <p className="text-xs text-ink-mute">{t("pots.payMmHint")}</p>
                   <Field label={t("common.amount")}>
                     <input
                       className={inputClass}
                       type="number"
                       value={mmAmount}
-                      onChange={(e) => setMmAmount(e.target.value)}
+                      onChange={(e) => {
+                        setMmAmount(e.target.value);
+                        setMontant(e.target.value);
+                      }}
                     />
                   </Field>
                   <Field label={t("tontines.provider")}>
@@ -868,6 +939,8 @@ function ContributionDetailInner() {
                       value={mmPhone}
                       onChange={(e) => setMmPhone(e.target.value)}
                       placeholder="+257…"
+                      inputMode="tel"
+                      autoComplete="tel"
                     />
                   </Field>
                   <Btn
@@ -886,9 +959,18 @@ function ContributionDetailInner() {
                     {t("tontines.feePreview")}
                   </Btn>
                   {mmFee != null && (
-                    <pre className="max-h-32 overflow-auto rounded-xl bg-brand-50 p-2 text-xs">
-                      {JSON.stringify(mmFee, null, 2)}
-                    </pre>
+                    <p className="rounded-xl bg-mint-50 px-3 py-2 text-sm font-semibold text-mint-900">
+                      {t("pots.feeLine", {
+                        fee: String(
+                          mmFee.fee ??
+                            (mmFee as { fees?: number }).fees ??
+                            "—",
+                        ),
+                        total: String(
+                          mmFee.total ?? mmFee.amount ?? mmAmount,
+                        ),
+                      })}
+                    </p>
                   )}
                 </div>
               )}
@@ -1277,18 +1359,49 @@ function ContributionDetailInner() {
                 <ul className="mt-3 divide-y divide-ink/[0.06]">
                   {participants.map((p, i) => {
                     const uid = p.userId ?? p.id;
+                    const name = memberDisplayName(
+                      p,
+                      t("common.member"),
+                    );
                     return (
                       <li
                         key={uid ?? i}
-                        className="flex items-center justify-between py-2 text-sm"
+                        className="flex items-center justify-between gap-2 py-2.5 text-sm"
                       >
-                        <span>
-                          {p.fullName ?? uid} · {p.role ?? "member"}
-                        </span>
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <MemberAvatar
+                            name={name}
+                            avatarUrl={p.avatar}
+                            size="sm"
+                            trustRing={
+                              !!(
+                                uid &&
+                                (trustByUser[uid]?.currentStreak ||
+                                  trustByUser[uid]?.level)
+                              )
+                            }
+                          />
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <p className="truncate font-semibold text-ink">
+                                {name}
+                              </p>
+                              {uid ? (
+                                <MemberTrustBadge
+                                  signals={trustByUser[uid]}
+                                  size="xs"
+                                />
+                              ) : null}
+                            </div>
+                            <p className="text-xs text-ink-mute">
+                              {p.role ?? "member"}
+                            </p>
+                          </div>
+                        </div>
                         {uid ? (
                           <Btn
                             variant="danger"
-                            className="text-xs"
+                            className="shrink-0 text-xs"
                             onClick={() => removeParticipant(uid)}
                           >
                             {t("pots.remove")}

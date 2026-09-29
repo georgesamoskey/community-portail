@@ -68,7 +68,52 @@ export function Alert({
   );
 }
 
-export function EmptyState({ children }: { children: React.ReactNode }) {
+export function EmptyState({
+  children,
+  title,
+  hint,
+  actionLabel,
+  href,
+  onAction,
+}: {
+  children?: React.ReactNode;
+  title?: string;
+  hint?: string;
+  actionLabel?: string;
+  href?: string;
+  onAction?: () => void;
+}) {
+  if (title) {
+    return (
+      <div className="rounded-2.5xl border border-dashed border-ink/10 bg-surface/70 px-6 py-10 text-center shadow-soft">
+        <p className="font-display text-base font-bold text-ink">{title}</p>
+        {hint ? (
+          <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-ink-mute">
+            {hint}
+          </p>
+        ) : null}
+        {children ? (
+          <div className="mt-2 text-sm text-ink-mute">{children}</div>
+        ) : null}
+        {actionLabel && href ? (
+          <a
+            href={href}
+            className="mt-4 inline-flex rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white shadow-lift"
+          >
+            {actionLabel}
+          </a>
+        ) : actionLabel && onAction ? (
+          <button
+            type="button"
+            onClick={onAction}
+            className="mt-4 inline-flex rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white shadow-lift"
+          >
+            {actionLabel}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <div className="rounded-2.5xl border border-dashed border-ink/10 bg-surface/60 px-8 py-10 text-center text-sm leading-relaxed text-ink-mute">
       {children}

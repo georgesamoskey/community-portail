@@ -40,11 +40,12 @@ import {
   removeChatOutbox,
 } from "@/lib/chat-cache";
 import { ChatMediaBubble } from "@/components/chat-media-bubble";
-import { africaShareLinks } from "@/lib/africa-share";
 import { acquireWakeLock, releaseWakeLock } from "@/lib/native";
 import { VoiceRecordButton } from "@/components/voice-record-button";
 import { compressImage } from "@/lib/secure-store";
 import { SkeletonList } from "@/components/native-pro";
+import { markPushMoment } from "@/components/push-prompt";
+import { RichEmpty } from "@/components/rich-empty";
 
 const QUICK_REACTIONS = ["👍", "❤️", "👏", "🔥", "😂"];
 
@@ -156,6 +157,9 @@ function ChatInner() {
     liveMessages,
     clearLive,
     typing,
+    onlineUsers,
+    roomOnlineIds,
+    readsByMessage,
     joinRoom,
     emitTyping,
     markAsRead,
@@ -165,6 +169,8 @@ function ChatInner() {
   const [trustByUser, setTrustByUser] = useState<
     Record<string, TrustSignals>
   >({});
+  const [outboxCount, setOutboxCount] = useState(0);
+  const [showPresence, setShowPresence] = useState(false);
 
   useEffect(() => {
     if (roomParam) {
@@ -428,9 +434,19 @@ function ChatInner() {
 
   useEffect(() => {
     void flushOutbox();
-    const onOnline = () => void flushOutbox();
+    const refreshOutbox = () => {
+      void listChatOutbox().then((rows) => setOutboxCount(rows.length));
+    };
+    refreshOutbox();
+    const onOnline = () => {
+      void flushOutbox().then(refreshOutbox);
+    };
+    const id = window.setInterval(refreshOutbox, 8_000);
     window.addEventListener("online", onOnline);
-    return () => window.removeEventListener("online", onOnline);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("online", onOnline);
+    };
   }, [flushOutbox]);
 
   const onSend = useCallback(async () => {
@@ -474,6 +490,7 @@ function ChatInner() {
         return [...without, { ...created, clientMessageId }];
       });
       void removeChatOutbox(clientMessageId);
+      markPushMoment("send");
     } catch (e) {
       await enqueueChatOutbox({
         clientMessageId,
@@ -616,18 +633,41 @@ function ChatInner() {
       ? `/app/tontines/${selected.tontineId}`
       : null;
 
+  const roomMembers = useMemo(() => {
+    return (selected?.members ?? []).map((m) => {
+      const id = m.id ?? m.userId ?? "";
+      const name =
+        m.fullName ||
+        `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() ||
+        t("common.member");
+      return {
+        id,
+        name,
+        avatar: m.avatar,
+        online: !!(id && (onlineUsers[id] || roomOnlineIds.includes(id))),
+      };
+    });
+  }, [selected?.members, onlineUsers, roomOnlineIds, t]);
+
+  const onlineInRoom = useMemo(
+    () => roomMembers.filter((m) => m.online),
+    [roomMembers],
+  );
+
   const selectRoom = (id: string) => {
     setSelectedId(id);
     setMobileShowThread(true);
+    setShowPresence(false);
     inputRef.current?.focus();
   };
 
   return (
-    <div className="chat-shell flex h-[calc(100dvh-4.75rem)] flex-col overflow-hidden border-ink/[0.06] bg-surface md:h-[calc(100dvh-8.5rem)] md:rounded-2.5xl md:border md:shadow-chat">
+    <div className="chat-shell flex h-[calc(100dvh-4.25rem)] flex-col overflow-hidden border-ink/[0.06] bg-surface max-md:h-[calc(100dvh-3.75rem-env(safe-area-inset-bottom))] md:h-[calc(100dvh-8.5rem)] md:rounded-2.5xl md:border md:shadow-chat">
       <div
         className={cx(
-          "flex items-center justify-between gap-3 border-b border-ink/[0.06] px-4 py-3.5 md:px-5",
+          "flex items-center justify-between gap-2 border-b border-ink/[0.06] px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3.5 md:px-5",
           !mobileShowThread && "mobile-trust-gradient border-transparent text-white md:bg-none md:!text-ink",
+          mobileShowThread && "hidden md:flex",
         )}
       >
         <div>
@@ -690,6 +730,18 @@ function ChatInner() {
                     : t("chat.retryWs")}
           </button>
           <MemberTrustBadge signals={myTrust} size="xs" />
+          {outboxCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => void flushOutbox().then(() =>
+                listChatOutbox().then((rows) => setOutboxCount(rows.length)),
+              )}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-900"
+              title={t("chat.outboxRetry")}
+            >
+              {t("chat.outboxPending", { n: outboxCount })}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void roomsBff.refresh()}
@@ -829,11 +881,12 @@ function ChatInner() {
             mobileShowThread ? "flex" : "hidden lg:flex",
           )}
         >
-          <header className="flex items-center gap-3 border-b border-ink/[0.06] bg-surface/90 px-3 py-3 backdrop-blur-md sm:px-4">
+          <header className="relative flex items-center gap-2 border-b border-ink/[0.06] bg-surface/95 px-2 py-2.5 backdrop-blur-md sm:gap-3 sm:px-4 sm:py-3">
             <button
               type="button"
-              className="rounded-xl px-2 py-1 text-sm font-semibold text-ink-soft hover:bg-brand-50 lg:hidden"
+              className="min-h-10 min-w-10 shrink-0 rounded-xl px-2 py-1 text-sm font-semibold text-ink-soft hover:bg-brand-50 lg:hidden"
               onClick={() => setMobileShowThread(false)}
+              aria-label={t("common.back")}
             >
               ←
             </button>
@@ -842,17 +895,17 @@ function ChatInner() {
                 <MemberAvatar
                   name={selected?.name ?? t("chat.groupChat")}
                   avatarUrl={selected?.avatar}
-                  online={connected}
+                  online={onlineInRoom.length > 0}
                   trustRing={(pulse.data?.circleStreakDays ?? 0) > 0}
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate font-display text-lg font-bold tracking-tight text-ink">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <p className="truncate font-display text-base font-bold tracking-tight text-ink sm:text-lg">
                       {selected?.name ?? t("chat.roomFallback", { id: selectedId?.slice(0, 8) ?? "" })}
                     </p>
                     {pulse.data?.circleStreakDays ? (
                       <span
-                        className="rounded-md bg-mint-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-mint-900"
+                        className="hidden rounded-md bg-mint-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-mint-900 xs:inline sm:inline"
                         title={t("chat.circleStreak", {
                           n: pulse.data.circleStreakDays,
                         })}
@@ -860,28 +913,38 @@ function ChatInner() {
                         🔥 {pulse.data.circleStreakDays}j
                       </span>
                     ) : null}
-                    <MemberTrustBadge signals={myTrust} size="xs" />
                   </div>
-                  <p className="truncate text-xs text-ink-mute">
+                  <button
+                    type="button"
+                    className="truncate text-left text-xs font-medium text-ink-mute hover:text-brand-600"
+                    onClick={() => setShowPresence((v) => !v)}
+                  >
                     {typing
                       ? `${typing.userName ? `${typing.userName}…` : t("chat.typing")}`
-                      : [
-                          selected?.memberCount
-                            ? t("chat.people", { n: selected.memberCount })
-                            : null,
-                          pulse.data?.progressPct != null
-                            ? `${pulse.data.progressPct}%`
-                            : null,
-                          connected ? t("chat.live") : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ") || t("chat.groupConvo")}
-                  </p>
+                      : onlineInRoom.length > 0
+                        ? t("chat.onlineCount", { n: onlineInRoom.length })
+                        : [
+                            selected?.memberCount
+                              ? t("chat.people", { n: selected.memberCount })
+                              : null,
+                            connected ? t("chat.live") : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || t("chat.groupConvo")}
+                  </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPresence((v) => !v)}
+                  className="hidden shrink-0 items-center gap-1 rounded-xl border border-mint-200 bg-mint-50 px-2.5 py-1.5 text-[11px] font-bold text-mint-900 sm:inline-flex"
+                >
+                  <span className="online-dot h-1.5 w-1.5 rounded-full bg-mint-500" />
+                  {t("chat.onlineCount", { n: onlineInRoom.length })}
+                </button>
                 {contextHref ? (
                   <Link
                     href={contextHref}
-                    className="shrink-0 rounded-xl border border-ink/[0.08] bg-surface px-3 py-1.5 text-xs font-bold text-ink hover:border-brand-300 hover:text-brand-600"
+                    className="hidden shrink-0 rounded-xl border border-ink/[0.08] bg-surface px-3 py-1.5 text-xs font-bold text-ink hover:border-brand-300 hover:text-brand-600 sm:inline-flex"
                   >
                     {t("chat.seeGroup")}
                   </Link>
@@ -890,26 +953,59 @@ function ChatInner() {
             ) : (
               <p className="text-sm text-ink-mute">{t("chat.pick")}</p>
             )}
+            {showPresence && (selected || selectedId) ? (
+              <div className="absolute left-2 right-2 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-2xl border border-ink/[0.08] bg-surface p-3 shadow-lift sm:left-auto sm:right-4 sm:w-72">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-wide text-ink-mute">
+                    {t("chat.presenceTitle")}
+                  </p>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-ink-mute"
+                    onClick={() => setShowPresence(false)}
+                  >
+                    ✕
+                  </button>
+                </div>
+                {roomMembers.length === 0 ? (
+                  <p className="text-xs text-ink-mute">{t("chat.presenceEmpty")}</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {[...roomMembers]
+                      .sort((a, b) => Number(b.online) - Number(a.online))
+                      .map((m) => (
+                        <li key={m.id || m.name} className="flex items-center gap-2">
+                          <MemberAvatar
+                            name={m.name}
+                            avatarUrl={m.avatar}
+                            size="sm"
+                            online={m.online}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-ink">
+                              {m.name}
+                            </p>
+                            <p className="text-[10px] font-medium text-ink-mute">
+                              {m.online ? t("chat.online") : t("chat.offline")}
+                            </p>
+                          </div>
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </div>
+            ) : null}
           </header>
 
           <div className="chat-thread-scroll min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5">
             {!selectedId && (
-              <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-mint-600 text-white shadow-lift">
-                  <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" aria-hidden>
-                    <path
-                      d="M7 18.5 4 21V7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v8a2.5 2.5 0 0 1-2.5 2.5H7Z"
-                      stroke="currentColor"
-                      strokeWidth="1.75"
-                    />
-                  </svg>
-                </div>
-                <p className="font-display text-xl font-bold tracking-tight text-ink">
-                  {t("chat.threadEmpty")}
-                </p>
-                <p className="max-w-sm text-sm leading-relaxed text-ink-mute">
-                  {t("chat.threadHint")}
-                </p>
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
+                <RichEmpty
+                  title={t("chat.threadEmpty")}
+                  hint={t("chat.threadHint")}
+                  actionLabel={t("chat.seeTontines")}
+                  href="/app/tontines"
+                />
               </div>
             )}
             {loadingMsg && (
@@ -918,14 +1014,13 @@ function ChatInner() {
               </div>
             )}
             {!loadingMsg && messages.length === 0 && selectedId && (
-              <div className="mx-auto max-w-sm rounded-2.5xl border border-dashed border-ink/10 bg-surface/80 p-6 text-center shadow-soft">
-                <p className="font-display font-bold text-ink">
-                  {t("chat.startConvo")}
-                </p>
-                <p className="mt-1.5 text-sm text-ink-mute">
-                  {t("chat.startHint")}
-                </p>
-              </div>
+              <RichEmpty
+                title={t("chat.startConvo")}
+                hint={t("chat.startHint")}
+                actionLabel={t("chat.inviteCta")}
+                href="/app/invitations"
+                className="mx-auto max-w-sm"
+              />
             )}
             {messages.map((m, idx) => {
               const mine =
@@ -984,7 +1079,10 @@ function ChatInner() {
                       name={label}
                       avatarUrl={m.senderAvatar}
                       size="sm"
-                      online={isTypingHere}
+                      online={
+                        isTypingHere ||
+                        !!(senderKey && onlineUsers[senderKey])
+                      }
                       trustRing={
                         !!(
                           senderSignals?.currentStreak ||
@@ -1057,6 +1155,15 @@ function ChatInner() {
                       >
                         {m.createdAt
                           ? formatDateTime(m.createdAt).split(", ").pop() ?? formatDateTime(m.createdAt)
+                          : ""}
+                        {mine
+                          ? m.pending
+                            ? " · …"
+                            : (readsByMessage[m.id]?.length ??
+                                  m.readBy?.length ??
+                                  0) > 0
+                              ? " · ✓✓"
+                              : " · ✓"
                           : ""}
                       </p>
                       <div
@@ -1169,14 +1276,14 @@ function ChatInner() {
             <div ref={bottomRef} />
           </div>
 
-          <footer className="chat-composer border-t border-ink/[0.06] bg-surface/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md sm:p-4 sm:pb-4">
+          <footer className="chat-composer border-t border-ink/[0.06] bg-surface/95 p-2 sm:p-3 md:p-4">
             {selectedId ? (
-              <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1">
+              <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {QUICK_REPLIES_FR.map((q) => (
                   <button
                     key={q.id}
                     type="button"
-                    className="shrink-0 rounded-full border border-ink/[0.08] bg-surface-sunken/50 px-3 py-1 text-xs font-semibold text-ink hover:border-brand-300 hover:bg-brand-50"
+                    className="shrink-0 rounded-full border border-ink/[0.08] bg-surface-sunken/50 px-3 py-1.5 text-xs font-semibold text-ink hover:border-brand-300 hover:bg-brand-50"
                     onClick={() => {
                       setDraft(q.text);
                       inputRef.current?.focus();
@@ -1187,27 +1294,10 @@ function ChatInner() {
                 ))}
                 <Link
                   href="/app/invitations"
-                  className="shrink-0 rounded-full border border-mint-200 bg-mint-50 px-3 py-1 text-xs font-bold text-mint-900"
+                  className="shrink-0 rounded-full border border-mint-200 bg-mint-50 px-3 py-1.5 text-xs font-bold text-mint-900"
                 >
                   + Inviter
                 </Link>
-                {selected?.contributionId || selected?.tontineId ? (
-                  <a
-                    href={
-                      africaShareLinks(
-                        `Rejoins notre cercle « ${selected?.name ?? "Akiba One"} » sur Community`,
-                        typeof window !== "undefined"
-                          ? `${window.location.origin}/app/chat?room=${selectedId}`
-                          : "",
-                      ).whatsapp
-                    }
-                    target="_blank"
-                    rel="noreferrer"
-                    className="shrink-0 rounded-full bg-[#25D366] px-3 py-1 text-xs font-bold text-white"
-                  >
-                    WhatsApp
-                  </a>
-                ) : null}
               </div>
             ) : null}
             {showTools && selectedId && (
@@ -1280,7 +1370,7 @@ function ChatInner() {
               </div>
             )}
             <form
-              className="flex items-end gap-2"
+              className="flex items-end gap-1.5 sm:gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
                 void onSend();
@@ -1288,13 +1378,13 @@ function ChatInner() {
             >
               <button
                 type="button"
-                className="inline-flex h-[46px] w-[46px] items-center justify-center rounded-2xl border border-ink/[0.08] text-xs font-bold text-ink-soft hover:bg-brand-50"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-ink/[0.08] text-xs font-bold text-ink-soft hover:bg-brand-50 sm:h-[46px] sm:w-[46px]"
                 title={t("chat.tools")}
                 onClick={() => setShowTools((v) => !v)}
               >
                 +
               </button>
-              <label className="inline-flex h-[46px] w-[46px] cursor-pointer items-center justify-center rounded-2xl border border-ink/[0.08] text-ink-soft hover:bg-brand-50">
+              <label className="hidden h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-2xl border border-ink/[0.08] text-ink-soft hover:bg-brand-50 xs:inline-flex sm:inline-flex sm:h-[46px] sm:w-[46px]">
                 <span className="sr-only">{t("chat.attach")}</span>
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
                   <path
@@ -1320,14 +1410,16 @@ function ChatInner() {
                   }}
                 />
               </label>
-              <VoiceRecordButton
-                disabled={!selectedId}
-                label={t("chat.voice") || "Vocal"}
-                onRecorded={(file) => void onSendFile(file)}
-              />
+              <div className="hidden sm:block">
+                <VoiceRecordButton
+                  disabled={!selectedId}
+                  label={t("chat.voice") || "Vocal"}
+                  onRecorded={(file) => void onSendFile(file)}
+                />
+              </div>
               <input
                 ref={inputRef}
-                className="flex-1 rounded-2xl border border-ink/[0.08] bg-surface-sunken/50 px-4 py-3 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-brand-400 focus:bg-surface focus:ring-2 focus:ring-brand-500/20"
+                className="min-w-0 flex-1 rounded-2xl border border-ink/[0.08] bg-surface-sunken/50 px-3 py-2.5 text-base text-ink outline-none transition placeholder:text-ink-faint focus:border-brand-400 focus:bg-surface focus:ring-2 focus:ring-brand-500/20 sm:px-4 sm:py-3 sm:text-sm"
                 placeholder={
                   selectedId
                     ? myName
@@ -1346,7 +1438,7 @@ function ChatInner() {
               <button
                 type="submit"
                 disabled={!selectedId || !draft.trim()}
-                className="rounded-2xl bg-brand-500 px-5 py-3 text-sm font-bold text-white shadow-lift transition hover:bg-brand-600 disabled:opacity-40"
+                className="inline-flex h-11 shrink-0 items-center justify-center rounded-2xl bg-brand-500 px-4 text-sm font-bold text-white shadow-lift transition hover:bg-brand-600 disabled:opacity-40 sm:h-auto sm:px-5 sm:py-3"
               >
                 {t("chat.send")}
               </button>

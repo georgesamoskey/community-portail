@@ -24,6 +24,8 @@ import { markChecklist } from "@/lib/retention";
 import { useI18n } from "@/lib/i18n/context";
 import { LocalDataHint } from "@/components/offline-ui";
 import { MemberAvatar } from "@/components/member-avatar";
+import { MemberTrustBadge } from "@/components/member-trust-badge";
+import { useTrustBatch } from "@/lib/use-trust-batch";
 import { memberDisplayName } from "@/lib/member-display";
 
 type Member = {
@@ -126,6 +128,10 @@ export default function TontineDetailPage() {
       ton?.members ??
       normalizeList<Member>(ton, ["memberships", "members"]),
     [ton],
+  );
+
+  const trustByUser = useTrustBatch(
+    members.map((m) => m.userId ?? m.user?.id ?? m.id),
   );
 
   const memberNameByUserId = useMemo(() => {
@@ -1111,9 +1117,23 @@ export default function TontineDetailPage() {
                             name={label}
                             avatarUrl={m.user?.avatar}
                             size="sm"
+                            trustRing={
+                              !!(
+                                (uid && trustByUser[uid]?.currentStreak) ||
+                                (uid && trustByUser[uid]?.level)
+                              )
+                            }
                           />
                           <div className="min-w-0">
-                          <p className="font-medium text-brand-900">{label}</p>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="font-medium text-brand-900">{label}</p>
+                            {uid ? (
+                              <MemberTrustBadge
+                                signals={trustByUser[uid]}
+                                size="xs"
+                              />
+                            ) : null}
+                          </div>
                           <p className="text-xs text-brand-600">
                             {m.role ?? "member"}
                             {m.status ? ` · ${m.status}` : ""}
