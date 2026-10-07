@@ -121,6 +121,18 @@ export default function DiscoverPage() {
     setInvitedMarked((prev) => new Set(prev).add(u.userId!));
   };
 
+  const refuseInvitee = (u: Invitee) => {
+    if (!u.userId) return;
+    void trackRecoEvent({
+      targetType: "user",
+      targetId: u.userId,
+      eventType: "refuse",
+      servedScore: u.score,
+      algorithm: u.algorithm ?? "adamic_adar",
+    });
+    setInvitedMarked((prev) => new Set(prev).add(u.userId!));
+  };
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -182,6 +194,7 @@ export default function DiscoverPage() {
                 <NetworkInviteeRow
                   person={u}
                   onMarkInvited={() => markInviteSent(u)}
+                  onRefuse={() => refuseInvitee(u)}
                   shareHref="/app/contributions"
                   trust={u.userId ? trustByUser[u.userId] : null}
                 />

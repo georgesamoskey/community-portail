@@ -23,12 +23,14 @@ export type NetworkInvitee = {
 export function NetworkInviteeRow({
   person,
   onMarkInvited,
+  onRefuse,
   shareHref,
   compact,
   trust,
 }: {
   person: NetworkInvitee;
   onMarkInvited?: () => void;
+  onRefuse?: () => void;
   shareHref?: string;
   compact?: boolean;
   trust?: TrustSignals | null;
@@ -66,28 +68,39 @@ export function NetworkInviteeRow({
           {scorePct != null ? ` · ${scorePct}%` : ""}
         </p>
       </div>
-      {onMarkInvited ? (
-        <Btn variant="secondary" onClick={onMarkInvited}>
-          {t("discover.markInvited")}
-        </Btn>
-      ) : null}
-      {shareHref ? (
-        <a
-          href={shareHref}
-          className="text-xs font-semibold text-brand-700"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {t("discover.inviteOnPot")}
-        </a>
-      ) : (
-        <Link
-          href="/app/discover"
-          className="text-xs font-semibold text-brand-700"
-        >
-          {t("common.invite")}
-        </Link>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {onMarkInvited ? (
+          <Btn variant="secondary" onClick={onMarkInvited}>
+            {t("discover.markInvited")}
+          </Btn>
+        ) : null}
+        {onRefuse ? (
+          <button
+            type="button"
+            onClick={onRefuse}
+            className="text-xs font-semibold text-ink-mute hover:text-ink"
+          >
+            {t("discover.refuseInvitee")}
+          </button>
+        ) : null}
+        {shareHref ? (
+          <a
+            href={shareHref}
+            className="text-xs font-semibold text-brand-700"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t("discover.inviteOnPot")}
+          </a>
+        ) : !onMarkInvited ? (
+          <Link
+            href="/app/discover"
+            className="text-xs font-semibold text-brand-700"
+          >
+            {t("common.invite")}
+          </Link>
+        ) : null}
+      </div>
     </div>
   );
 }

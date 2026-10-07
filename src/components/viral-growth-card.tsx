@@ -196,6 +196,18 @@ export function ViralGrowthCard({ engagement }: { engagement?: EngagementMe | nu
     setMarked((prev) => new Set(prev).add(u.userId!));
   };
 
+  const refuseInvitee = (u: Invitee) => {
+    if (!u.userId) return;
+    void trackRecoEvent({
+      targetType: "user",
+      targetId: u.userId,
+      eventType: "refuse",
+      servedScore: u.score,
+      algorithm: u.algorithm ?? "adamic_adar",
+    });
+    setMarked((prev) => new Set(prev).add(u.userId!));
+  };
+
   return (
     <section className="overflow-hidden rounded-2.5xl border border-ink/[0.06] bg-surface shadow-soft">
       <div className="bg-gradient-to-br from-brand-700 via-brand-600 to-mint-600 px-5 py-4 text-white">
@@ -382,6 +394,13 @@ export function ViralGrowthCard({ engagement }: { engagement?: EngagementMe | nu
                   >
                     WA
                   </a>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-ink-mute hover:text-ink"
+                    onClick={() => refuseInvitee(u)}
+                  >
+                    {t("discover.refuseInvitee")}
+                  </button>
                 </li>
               );
               })}
@@ -460,7 +479,7 @@ export function ViralGrowthCard({ engagement }: { engagement?: EngagementMe | nu
           </Btn>
           <Link
             href="/app/invitations"
-            className="col-span-2 inline-flex items-center justify-center rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm font-semibold text-brand-800 sm:col-span-1"
+            className="col-span-2 inline-flex items-center justify-center rounded-xl border border-brand-200 bg-surface px-3 py-2 text-sm font-semibold text-brand-800 sm:col-span-1"
           >
             {t("viral.inviteCta")}
           </Link>

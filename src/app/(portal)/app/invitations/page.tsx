@@ -116,6 +116,18 @@ export default function InvitationsPage() {
     setMarked((prev) => new Set(prev).add(u.userId!));
   };
 
+  const refuseInvitee = (u: Invitee) => {
+    if (!u.userId) return;
+    void trackRecoEvent({
+      targetType: "user",
+      targetId: u.userId,
+      eventType: "refuse",
+      servedScore: u.score,
+      algorithm: u.algorithm ?? "adamic_adar",
+    });
+    setMarked((prev) => new Set(prev).add(u.userId!));
+  };
+
   const tabs = [
     ["received", t("invitations.received")] as const,
     ["sent", t("invitations.sent")] as const,
@@ -151,7 +163,7 @@ export default function InvitationsPage() {
               return (
               <li
                 key={u.userId}
-                className="flex flex-wrap items-center gap-2 rounded-xl bg-white/80 px-3 py-2"
+                className="flex flex-wrap items-center gap-2 rounded-xl bg-surface/80 px-3 py-2"
               >
                 <MemberAvatar
                   name={name}
@@ -181,6 +193,13 @@ export default function InvitationsPage() {
                 >
                   {t("discover.markInvited")}
                 </Btn>
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-ink-mute hover:text-ink"
+                  onClick={() => refuseInvitee(u)}
+                >
+                  {t("discover.refuseInvitee")}
+                </button>
                 <Link
                   href="/app/contributions"
                   className="text-xs font-semibold text-brand-700"
@@ -203,7 +222,7 @@ export default function InvitationsPage() {
             className={`rounded-lg px-3 py-1.5 text-sm ${
               tab === id
                 ? "bg-brand-600 text-white"
-                : "border border-brand-200 bg-white text-brand-800"
+                : "border border-brand-200 bg-surface text-brand-800"
             }`}
           >
             {label}
@@ -244,7 +263,7 @@ export default function InvitationsPage() {
                 {inv.contributionId || inv.contribution?.id ? (
                   <Link
                     href={`/app/contributions/${inv.contributionId ?? inv.contribution?.id}`}
-                    className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-semibold text-brand-800"
+                    className="rounded-lg border border-brand-200 bg-surface px-2.5 py-1 text-xs font-semibold text-brand-800"
                   >
                     {t("invitations.pot")}
                   </Link>

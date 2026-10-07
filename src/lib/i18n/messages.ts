@@ -613,6 +613,7 @@ export const messages = {
       networkMatch: "Proche de votre réseau",
       noInvitees: "Pas encore de suggestions d’invitation.",
       markInvited: "Marquer invité",
+      refuseInvitee: "Pas intéressé",
       inviteOnPot: "Inviter sur une cagnotte →",
     },
     invitations: {
@@ -1462,6 +1463,7 @@ export const messages = {
       networkMatch: "Near your network",
       noInvitees: "No invite suggestions yet.",
       markInvited: "Mark invited",
+      refuseInvitee: "Not interested",
       inviteOnPot: "Invite on a pot →",
     },
     invitations: {
@@ -2294,6 +2296,7 @@ export const messages = {
       networkMatch: "Hafi y'umuryango wawe",
       noInvitees: "No invite suggestions yet.",
       markInvited: "Mark invited",
+      refuseInvitee: "Not interested",
       inviteOnPot: "Invite on a pot →",
     },
     invitations: {
@@ -3126,6 +3129,7 @@ export const messages = {
       networkMatch: "Karibu na mtandao wako",
       noInvitees: "No invite suggestions yet.",
       markInvited: "Mark invited",
+      refuseInvitee: "Not interested",
       inviteOnPot: "Invite on a pot →",
     },
     invitations: {
