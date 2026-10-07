@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useOfflineOptional } from "@/lib/offline/context";
 import { listChatOutbox } from "@/lib/chat-cache";
 import { useI18n } from "@/lib/i18n/context";
 import { cx } from "@/lib/cx";
+import { haptic } from "@/lib/native";
 
 export function LocalDataHint({ show }: { show?: boolean }) {
   const { t } = useI18n();
   if (!show) return null;
   return (
-    <p className="mb-3 rounded-xl border border-amber-200/80 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+    <p className="mb-3 rounded-xl border border-[color:var(--warn-border)] bg-[var(--warn-bg)] px-3 py-2 text-xs font-semibold text-[color:var(--warn-fg)]">
       {t("pwa.localData")}
     </p>
   );
@@ -50,8 +52,8 @@ export function OfflineBanner() {
       className={cx(
         "border-b px-4 py-2 text-center text-xs font-semibold sm:text-sm",
         showOffline
-          ? "border-amber-200/80 bg-amber-50 text-amber-900"
-          : "border-mint-200/80 bg-mint-100/80 text-mint-700",
+          ? "border-[color:var(--warn-border)] bg-[var(--warn-bg)] text-[color:var(--warn-fg)]"
+          : "border-mint-200/80 bg-mint-50 text-mint-800",
       )}
     >
       {showOffline ? (
@@ -64,7 +66,10 @@ export function OfflineBanner() {
       ) : (
         <button
           type="button"
-          onClick={() => void offline.flush()}
+          onClick={() => {
+            haptic("medium");
+            void offline.flush();
+          }}
           className="underline-offset-2 hover:underline"
           disabled={offline.syncing}
         >
@@ -98,9 +103,12 @@ export function SyncStatusChip() {
   return (
     <button
       type="button"
-      onClick={() => void offline.flush()}
+      onClick={() => {
+        haptic("medium");
+        void offline.flush();
+      }}
       disabled={offline.syncing || !offline.online}
-      className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-900 transition hover:bg-amber-100"
+      className="inline-flex items-center gap-1.5 rounded-xl border border-[color:var(--warn-border)] bg-[var(--warn-bg)] px-2.5 py-1 text-[11px] font-bold text-[color:var(--warn-fg)] transition hover:opacity-90"
       title={t("pwa.syncChipTitle")}
     >
       <span
@@ -149,6 +157,7 @@ function isStandaloneDisplay(): boolean {
 
 export function PwaInstallPrompt() {
   const { t } = useI18n();
+  const pathname = usePathname();
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
     null,
   );
@@ -156,7 +165,10 @@ export function PwaInstallPrompt() {
   const [standalone, setStandalone] = useState(true);
   const [iosHint, setIosHint] = useState(false);
   const [compact, setCompact] = useState(false);
+  const [ready, setReady] = useState(false);
   const engaged = useRef(false);
+
+  const inApp = pathname?.startsWith("/app") ?? false;
 
   useEffect(() => {
     const isStandalone = isStandaloneDisplay();
@@ -166,7 +178,6 @@ export function PwaInstallPrompt() {
     const dismissedAt = localStorage.getItem("akiba-install-dismissed-at");
     if (dismissedAt) {
       const age = Date.now() - Number(dismissedAt);
-      // Remonter le prompt après 3 jours
       if (Number.isFinite(age) && age < 3 * 24 * 60 * 60 * 1000) {
         setDismissed(true);
         setCompact(true);
@@ -195,28 +206,44 @@ export function PwaInstallPrompt() {
       setStandalone(true);
       localStorage.setItem("akiba-pwa-installed", "1");
     };
+    const onReady = () => {
+      if (window.__akibaDeferredInstall) {
+        setDeferred(window.__akibaDeferredInstall);
+      }
+    };
 
-    // Capturer tôt + après navigation
     window.addEventListener("beforeinstallprompt", onBip);
     window.addEventListener("appinstalled", onInstalled);
+    window.addEventListener("akiba:install-ready", onReady);
 
-    // Marquer l’engagement utilisateur (critère Chrome)
     const markEngage = () => {
       engaged.current = true;
+      // Petit délai post-engagement (critère Chrome + UX non intrusive)
+      window.setTimeout(() => setReady(true), 1800);
     };
     window.addEventListener("pointerdown", markEngage, { once: true });
     window.addEventListener("keydown", markEngage, { once: true });
+    // Fallback si déjà engagé (retour session)
+    if (sessionStorage.getItem("akiba-engaged") === "1") {
+      engaged.current = true;
+      setReady(true);
+    }
+    const markSession = () => sessionStorage.setItem("akiba-engaged", "1");
+    window.addEventListener("pointerdown", markSession, { once: true });
 
     return () => {
       window.removeEventListener("beforeinstallprompt", onBip);
       window.removeEventListener("appinstalled", onInstalled);
+      window.removeEventListener("akiba:install-ready", onReady);
       window.removeEventListener("pointerdown", markEngage);
       window.removeEventListener("keydown", markEngage);
+      window.removeEventListener("pointerdown", markSession);
     };
   }, []);
 
   const runInstall = async () => {
     if (!deferred) return;
+    haptic("medium");
     await deferred.prompt();
     const choice = await deferred.userChoice;
     window.__akibaDeferredInstall = null;
@@ -225,18 +252,20 @@ export function PwaInstallPrompt() {
       localStorage.setItem("akiba-install-dismissed-at", String(Date.now()));
       setDismissed(true);
       setCompact(true);
+    } else {
+      haptic("success");
     }
   };
 
-  if (standalone) return null;
+  if (standalone || !inApp) return null;
 
   // FAB compact si bannière fermée mais install encore possible
-  if (dismissed && deferred && compact) {
+  if (dismissed && deferred && compact && ready) {
     return (
       <button
         type="button"
         onClick={() => void runInstall()}
-        className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] right-3 z-[60] flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 text-white shadow-lift md:bottom-6"
+        className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] right-3 z-[60] flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 text-white shadow-lift native-pressable md:bottom-6"
         aria-label={t("pwa.installCta")}
         title={t("pwa.installTitle")}
       >
@@ -245,22 +274,55 @@ export function PwaInstallPrompt() {
           src="/icons/icon-96.png"
           alt=""
           className="h-8 w-8 rounded-lg"
+          width={32}
+          height={32}
+        />
+      </button>
+    );
+  }
+
+  // FAB iOS après dismiss
+  if (dismissed && iosHint === false && isIosSafari() && compact) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          haptic("light");
+          setIosHint(true);
+          setDismissed(false);
+          setCompact(false);
+          localStorage.removeItem("akiba-ios-install-dismissed");
+        }}
+        className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] right-3 z-[60] flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500 text-white shadow-lift native-pressable md:bottom-6"
+        aria-label={t("pwa.installIosTitle")}
+        title={t("pwa.installIosTitle")}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/icons/icon-96.png"
+          alt=""
+          className="h-8 w-8 rounded-lg"
+          width={32}
+          height={32}
         />
       </button>
     );
   }
 
   if (dismissed && !iosHint) return null;
+  if (!ready) return null;
 
   if (deferred && !dismissed) {
     return (
-      <div className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[60] mx-auto max-w-md rounded-2xl border border-ink/[0.08] bg-surface/95 p-3 shadow-lift backdrop-blur-xl md:bottom-6">
+      <div className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[60] mx-auto max-w-md rounded-2xl border border-ink/[0.08] bg-surface/95 p-3 shadow-lift backdrop-blur-xl social-rise md:bottom-6">
         <div className="flex items-start gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/icons/icon-192.png"
             alt=""
             className="h-11 w-11 rounded-xl"
+            width={44}
+            height={44}
           />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-ink">{t("pwa.installTitle")}</p>
@@ -273,7 +335,7 @@ export function PwaInstallPrompt() {
             <div className="mt-2.5 flex gap-2">
               <button
                 type="button"
-                className="rounded-xl bg-brand-500 px-3 py-1.5 text-xs font-bold text-white"
+                className="rounded-xl bg-brand-500 px-3 py-1.5 text-xs font-bold text-white native-pressable"
                 onClick={() => void runInstall()}
               >
                 {t("pwa.installCta")}
@@ -282,6 +344,7 @@ export function PwaInstallPrompt() {
                 type="button"
                 className="rounded-xl px-3 py-1.5 text-xs font-semibold text-ink-mute"
                 onClick={() => {
+                  haptic("light");
                   localStorage.setItem(
                     "akiba-install-dismissed-at",
                     String(Date.now()),
@@ -302,7 +365,7 @@ export function PwaInstallPrompt() {
   if (!iosHint) return null;
 
   return (
-    <div className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[60] mx-auto max-w-md overflow-hidden rounded-2xl border border-ink/[0.08] bg-surface/95 shadow-lift backdrop-blur-xl md:bottom-6">
+    <div className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[60] mx-auto max-w-md overflow-hidden rounded-2xl border border-ink/[0.08] bg-surface/95 shadow-lift backdrop-blur-xl social-rise md:bottom-6">
       <div className="mobile-trust-gradient px-4 py-3 text-white">
         <p className="text-sm font-bold">{t("pwa.installIosTitle")}</p>
         <p className="mt-0.5 text-xs text-white/80">{t("pwa.installIosHint")}</p>
@@ -313,6 +376,8 @@ export function PwaInstallPrompt() {
           src="/icons/icon-192.png"
           alt=""
           className="h-11 w-11 rounded-xl shadow-soft"
+          width={44}
+          height={44}
         />
         <div className="min-w-0 flex-1">
           <ol className="space-y-2 text-[12px] font-medium text-ink-soft">
@@ -354,10 +419,13 @@ export function PwaInstallPrompt() {
           <div className="mt-3 flex gap-2">
             <button
               type="button"
-              className="rounded-xl bg-brand-500 px-3 py-1.5 text-xs font-bold text-white"
+              className="rounded-xl bg-brand-500 px-3 py-1.5 text-xs font-bold text-white native-pressable"
               onClick={() => {
+                haptic("light");
                 localStorage.setItem("akiba-ios-install-dismissed", "1");
                 setIosHint(false);
+                setCompact(true);
+                setDismissed(true);
               }}
             >
               {t("pwa.iosGotIt")}
@@ -366,8 +434,11 @@ export function PwaInstallPrompt() {
               type="button"
               className="rounded-xl px-3 py-1.5 text-xs font-semibold text-ink-mute"
               onClick={() => {
+                haptic("light");
                 localStorage.setItem("akiba-ios-install-dismissed", "1");
                 setIosHint(false);
+                setCompact(true);
+                setDismissed(true);
               }}
             >
               {t("pwa.installLater")}

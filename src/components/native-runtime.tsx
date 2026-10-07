@@ -13,11 +13,13 @@ import {
 } from "@/lib/native";
 import { NativeToastHost, pushToast } from "@/components/native-ux";
 import { useI18n } from "@/lib/i18n/context";
+import { useOfflineOptional } from "@/lib/offline/context";
 
 /** Runtime PWA : viewport, standalone, réseau, badge, stockage. */
 export function NativeRuntime({ badgeCount = 0 }: { badgeCount?: number }) {
   const { t } = useI18n();
   const pathname = usePathname();
+  const offline = useOfflineOptional();
   const wasOnline = useRef(true);
   const prevPath = useRef(pathname);
 
@@ -48,7 +50,10 @@ export function NativeRuntime({ badgeCount = 0 }: { badgeCount?: number }) {
   }, [badgeCount]);
 
   useEffect(() => {
-    if (pathname.startsWith("/app/chat") || pathname.startsWith("/app/notifications")) {
+    if (
+      pathname.startsWith("/app/chat") ||
+      pathname.startsWith("/app/notifications")
+    ) {
       void clearAppBadge();
     }
   }, [pathname]);
@@ -90,6 +95,19 @@ export function NativeRuntime({ badgeCount = 0 }: { badgeCount?: number }) {
     };
   }, [t]);
 
+  // Toast après sync auto au retour réseau
+  useEffect(() => {
+    const onSync = (e: Event) => {
+      const pending = (e as CustomEvent<{ pending?: number }>).detail?.pending ?? 0;
+      if (pending > 0) {
+        pushToast(t("native.syncDone", { n: pending }), "ok");
+        haptic("success");
+      }
+    };
+    window.addEventListener("akiba:online-sync", onSync);
+    return () => window.removeEventListener("akiba:online-sync", onSync);
+  }, [t]);
+
   useEffect(() => {
     if (prevPath.current !== pathname) {
       haptic("selection");
@@ -99,6 +117,16 @@ export function NativeRuntime({ badgeCount = 0 }: { badgeCount?: number }) {
       }
     }
   }, [pathname]);
+
+  // Préparer le cache offline une fois connecté en app
+  useEffect(() => {
+    if (!offline || !offline.online) return;
+    if (!pathname.startsWith("/app")) return;
+    const key = "akiba-offline-warmed";
+    if (sessionStorage.getItem(key) === "1") return;
+    sessionStorage.setItem(key, "1");
+    void offline.prepare().catch(() => undefined);
+  }, [offline, pathname]);
 
   return <NativeToastHost />;
 }

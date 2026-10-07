@@ -39,9 +39,9 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#337AB7" },
-    { media: "(prefers-color-scheme: dark)", color: "#1e5a8a" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1a2b" },
   ],
-  colorScheme: "light",
+  colorScheme: "light dark",
 };
 
 export const metadata: Metadata = {
@@ -132,9 +132,15 @@ export default async function RootLayout({
     : localeFromAcceptLanguage(hdrs.get("accept-language"), country);
 
   return (
-    <html lang={LOCALE_META[locale].bcp47}>
+    <html lang={LOCALE_META[locale].bcp47} suppressHydrationWarning>
       <head>
         <PwaHeadLinks />
+        {/* Anti-FOUC thème — avant paint, aligné sur applyTheme (akiba-theme) */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var m=localStorage.getItem("akiba-theme")||"system";var d=m==="dark"||(m==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);document.documentElement.dataset.theme=d?"dark":"light";}catch(e){}})();`,
+          }}
+        />
       </head>
       <body
         className={`${display.variable} ${sans.variable} font-sans antialiased`}

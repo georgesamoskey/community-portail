@@ -117,6 +117,9 @@ export default function TontineDetailPage() {
   const providers = useBff<unknown>(
     canPay ? "/mobile-money/providers?capability=collection" : null,
   );
+  const disburseProviders = useBff<unknown>(
+    canPay ? "/mobile-money/providers?capability=disbursement" : null,
+  );
 
   const ton = detail.data;
   const asca = useBff<AscaOverview>(
@@ -161,6 +164,14 @@ export default function TontineDetailPage() {
       ),
     [providers.data],
   );
+  const disburseProviderList = useMemo(
+    () =>
+      normalizeList<{ slug?: string; id?: string; name?: string }>(
+        disburseProviders.data,
+        ["items", "providers", "data"],
+      ),
+    [disburseProviders.data],
+  );
 
   const [inviteUserId, setInviteUserId] = useState("");
   const [searchQ, setSearchQ] = useState("");
@@ -191,7 +202,7 @@ export default function TontineDetailPage() {
   const [ascaDepositAmount, setAscaDepositAmount] = useState("");
   const [ascaDepositMode, setAscaDepositMode] = useState<"cash" | "mm">("cash");
   const [ascaDepositPhone, setAscaDepositPhone] = useState("");
-  const [ascaDepositProvider, setAscaDepositProvider] = useState("lumicash");
+  const [ascaDepositProvider, setAscaDepositProvider] = useState("");
   const [ascaOpenNext, setAscaOpenNext] = useState(true);
   const [ascaCloseMm, setAscaCloseMm] = useState(false);
   const [shareOutDest, setShareOutDest] = useState<
@@ -488,7 +499,7 @@ export default function TontineDetailPage() {
           <>
             <Link
               href="/app/tontines"
-              className="rounded-xl border border-brand-200 bg-white px-3.5 py-2 text-sm font-semibold text-brand-800"
+              className="rounded-xl border border-brand-200 bg-surface px-3.5 py-2 text-sm font-semibold text-brand-800"
             >
               {t("common.list")}
             </Link>
@@ -598,12 +609,21 @@ export default function TontineDetailPage() {
                 {ascaDepositMode === "mm" && (
                   <>
                     <Field label={t("tontines.provider")}>
-                      <input
+                      <select
                         className={inputClass}
                         value={ascaDepositProvider}
                         onChange={(e) => setAscaDepositProvider(e.target.value)}
-                        placeholder="lumicash"
-                      />
+                      >
+                        <option value="">{t("tontines.choose")}</option>
+                        {providerList.map((p) => {
+                          const slug = p.slug ?? p.id ?? "";
+                          return (
+                            <option key={slug} value={slug}>
+                              {p.name ?? slug}
+                            </option>
+                          );
+                        })}
+                      </select>
                     </Field>
                     <Field label={t("common.phone")}>
                       <input
@@ -766,9 +786,8 @@ export default function TontineDetailPage() {
                             )}{" "}
                             · {a.shares ?? 0} parts
                           </span>
-                          <input
+                          <select
                             className={inputClass}
-                            placeholder="provider"
                             value={shareOutDest[a.userId ?? ""]?.provider ?? ""}
                             onChange={(e) =>
                               setShareOutDest((prev) => ({
@@ -779,7 +798,17 @@ export default function TontineDetailPage() {
                                 },
                               }))
                             }
-                          />
+                          >
+                            <option value="">{t("tontines.choose")}</option>
+                            {disburseProviderList.map((p) => {
+                              const slug = p.slug ?? p.id ?? "";
+                              return (
+                                <option key={slug} value={slug}>
+                                  {p.name ?? slug}
+                                </option>
+                              );
+                            })}
+                          </select>
                           <input
                             className={inputClass}
                             placeholder="+257…"
@@ -789,7 +818,7 @@ export default function TontineDetailPage() {
                                 ...prev,
                                 [a.userId ?? ""]: {
                                   provider:
-                                    prev[a.userId ?? ""]?.provider ?? "lumicash",
+                                    prev[a.userId ?? ""]?.provider ?? "",
                                   phone: e.target.value,
                                 },
                               }))
@@ -1557,12 +1586,21 @@ export default function TontineDetailPage() {
                 {disburseMethod === "mobile_money" && (
                   <>
                     <Field label={t("tontines.provider")}>
-                      <input
+                      <select
                         className={inputClass}
                         value={disburseProvider}
                         onChange={(e) => setDisburseProvider(e.target.value)}
-                        placeholder="lumicash"
-                      />
+                      >
+                        <option value="">{t("tontines.choose")}</option>
+                        {disburseProviderList.map((p) => {
+                          const slug = p.slug ?? p.id ?? "";
+                          return (
+                            <option key={slug} value={slug}>
+                              {p.name ?? slug}
+                            </option>
+                          );
+                        })}
+                      </select>
                     </Field>
                     <Field label={t("common.phone")}>
                       <input
@@ -1589,12 +1627,21 @@ export default function TontineDetailPage() {
             <Panel title="Décaissement prêt ASCA (Mobile Money)">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label={t("tontines.provider")}>
-                  <input
+                  <select
                     className={inputClass}
                     value={disburseProvider}
                     onChange={(e) => setDisburseProvider(e.target.value)}
-                    placeholder="lumicash"
-                  />
+                  >
+                    <option value="">{t("tontines.choose")}</option>
+                    {disburseProviderList.map((p) => {
+                      const slug = p.slug ?? p.id ?? "";
+                      return (
+                        <option key={slug} value={slug}>
+                          {p.name ?? slug}
+                        </option>
+                      );
+                    })}
+                  </select>
                 </Field>
                 <Field label={t("common.phone")}>
                   <input
@@ -1638,12 +1685,21 @@ export default function TontineDetailPage() {
                   />
                 </Field>
                 <Field label={t("tontines.provider")}>
-                  <input
+                  <select
                     className={inputClass}
                     value={disburseProvider}
                     onChange={(e) => setDisburseProvider(e.target.value)}
-                    placeholder="lumicash"
-                  />
+                  >
+                    <option value="">{t("tontines.choose")}</option>
+                    {providerList.map((p) => {
+                      const slug = p.slug ?? p.id ?? "";
+                      return (
+                        <option key={slug} value={slug}>
+                          {p.name ?? slug}
+                        </option>
+                      );
+                    })}
+                  </select>
                 </Field>
                 <Field label={t("common.phone")}>
                   <input

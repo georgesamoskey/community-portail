@@ -171,36 +171,10 @@
       ]
     },
     {
-      "name": "Paiements",
-      "short_name": "Payer",
-      "description": "Mobile Money et paiements",
-      "url": "/app/payments?utm_source=pwa&utm_medium=shortcut",
-      "icons": [
-        {
-          "src": "/icons/icon-192.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
       "name": "Notifications",
       "short_name": "Alertes",
       "description": "Alertes cotisation et chat",
       "url": "/app/notifications?utm_source=pwa&utm_medium=shortcut",
-      "icons": [
-        {
-          "src": "/icons/icon-192.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
-      "name": "Profil",
-      "short_name": "Profil",
-      "description": "Compte et paramètres",
-      "url": "/app/profile?utm_source=pwa&utm_medium=shortcut",
       "icons": [
         {
           "src": "/icons/icon-192.png",

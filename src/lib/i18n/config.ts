@@ -3,7 +3,18 @@
 export const LOCALES = ["fr", "en", "rn", "sw"] as const;
 export type Locale = (typeof LOCALES)[number];
 
-export const COUNTRIES = ["BI", "CD", "RW", "TZ", "KE", "UG"] as const;
+export const COUNTRIES = [
+  "BI",
+  "CD",
+  "RW",
+  "TZ",
+  "KE",
+  "UG",
+  "SN",
+  "CI",
+  "CG",
+  "NG",
+] as const;
 export type CountryCode = (typeof COUNTRIES)[number];
 
 export const LOCALE_META: Record<
@@ -73,6 +84,38 @@ export const COUNTRY_META: Record<
     currency: "UGX",
     dial: "+256",
     languages: ["en", "sw"],
+    defaultLocale: "en",
+  },
+  SN: {
+    name: "Senegal",
+    flag: "🇸🇳",
+    currency: "XOF",
+    dial: "+221",
+    languages: ["fr", "en"],
+    defaultLocale: "fr",
+  },
+  CI: {
+    name: "Côte d'Ivoire",
+    flag: "🇨🇮",
+    currency: "XOF",
+    dial: "+225",
+    languages: ["fr", "en"],
+    defaultLocale: "fr",
+  },
+  CG: {
+    name: "Congo-Brazzaville",
+    flag: "🇨🇬",
+    currency: "XAF",
+    dial: "+242",
+    languages: ["fr", "en"],
+    defaultLocale: "fr",
+  },
+  NG: {
+    name: "Nigeria",
+    flag: "🇳🇬",
+    currency: "NGN",
+    dial: "+234",
+    languages: ["en"],
     defaultLocale: "en",
   },
 };

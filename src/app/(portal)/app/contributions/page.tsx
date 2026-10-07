@@ -201,7 +201,7 @@ export default function ContributionsPage() {
             className={`rounded-lg px-3 py-1.5 text-sm ${
               tab === id
                 ? "bg-brand-600 text-white"
-                : "border border-brand-200 bg-white text-brand-800"
+                : "border border-brand-200 bg-surface text-brand-800"
             }`}
           >
             {label}
@@ -217,7 +217,7 @@ export default function ContributionsPage() {
         <EmptyState>{t("pots.empty")}</EmptyState>
       )}
       {items.length > 0 && (
-        <ul className="divide-y divide-brand-100 overflow-hidden rounded-2xl border border-brand-100 bg-white/80 shadow-sm">
+        <ul className="divide-y divide-brand-100 overflow-hidden rounded-2xl border border-brand-100 bg-surface/80 shadow-soft">
           {items.map((c, i) => {
             const hrefId =
               tab === "cotisations" ? c.contributionId : c.id;

@@ -667,7 +667,7 @@ function ContributionDetailInner() {
           <>
             <Link
               href="/app/contributions"
-              className="rounded-xl border border-brand-200 bg-white px-3.5 py-2 text-sm font-semibold text-brand-800"
+              className="rounded-xl border border-brand-200 bg-surface px-3.5 py-2 text-sm font-semibold text-brand-800"
             >
               {t("common.list")}
             </Link>

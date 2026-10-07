@@ -12,6 +12,7 @@ import { pushToast } from "@/components/native-ux";
 export function SwUpdateToast() {
   const { t } = useI18n();
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
+  const reloading = useRef(false);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
@@ -34,9 +35,18 @@ export function SwUpdateToast() {
       });
     });
 
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
+    const onWaiting = (e: Event) => {
+      const sw = (e as CustomEvent<ServiceWorker>).detail;
+      if (sw) setWaiting(sw);
+    };
+    window.addEventListener("akiba:sw-waiting", onWaiting);
+
+    const onController = () => {
+      if (reloading.current) return;
+      reloading.current = true;
       window.location.reload();
-    });
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", onController);
 
     const onFocus = () => {
       void reg?.update().then(() => {
@@ -57,22 +67,32 @@ export function SwUpdateToast() {
     return () => {
       window.clearInterval(id);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("akiba:sw-waiting", onWaiting);
+      navigator.serviceWorker.removeEventListener(
+        "controllerchange",
+        onController,
+      );
     };
   }, []);
 
   if (!waiting) return null;
 
   return (
-    <div className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[85] mx-auto max-w-md rounded-2xl border border-brand-200 bg-brand-500 px-4 py-3 text-center text-sm font-bold text-white shadow-lift">
+    <div className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[85] mx-auto max-w-md rounded-2xl border border-brand-200 bg-brand-500 px-4 py-3 text-center text-sm font-bold text-white shadow-lift social-rise">
       <p>{t("native.updateReady")}</p>
       <button
         type="button"
-        className="mt-2 rounded-xl bg-white/20 px-3 py-1.5 text-xs font-bold"
+        className="mt-2 rounded-xl bg-white/20 px-3 py-1.5 text-xs font-bold native-pressable"
         onClick={() => {
           haptic("medium");
           waiting.postMessage({ type: "SKIP_WAITING" });
           waiting.postMessage("SKIP_WAITING");
-          window.setTimeout(() => window.location.reload(), 400);
+          window.setTimeout(() => {
+            if (!reloading.current) {
+              reloading.current = true;
+              window.location.reload();
+            }
+          }, 500);
         }}
       >
         {t("native.updateCta")}
@@ -168,13 +188,13 @@ export function OfflineQueuePanel() {
   if (!offline || offline.pendingCount === 0) return null;
 
   return (
-    <div className="mb-4 rounded-2xl border border-amber-200/80 bg-amber-50 p-3 dark:border-amber-500/30 dark:bg-amber-950/40">
+    <div className="mb-4 rounded-2xl border border-[color:var(--warn-border)] bg-[var(--warn-bg)] p-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-bold text-amber-950 dark:text-amber-100">
+          <p className="text-sm font-bold text-[color:var(--warn-fg)]">
             {t("native.queueTitle", { n: offline.pendingCount })}
           </p>
-          <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
+          <p className="text-xs text-[color:var(--warn-fg)] opacity-80">
             {t("native.queueHint")}
           </p>
         </div>
@@ -184,15 +204,15 @@ export function OfflineQueuePanel() {
           onClick={() => {
             haptic("medium");
             void offline.flush().then(() =>
-              pushToast(t("native.refreshed"), "ok"),
+              pushToast(t("native.syncDone", { n: offline.pendingCount }), "ok"),
             );
           }}
-          className="shrink-0 rounded-xl bg-amber-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+          className="shrink-0 rounded-xl bg-brand-500 px-3 py-2 text-xs font-bold text-white disabled:opacity-50 native-pressable"
         >
           {offline.syncing ? t("pwa.syncing") : t("native.queueSync")}
         </button>
       </div>
-      <ul className="mt-2 max-h-28 space-y-1 overflow-y-auto text-[11px] text-amber-900/90 dark:text-amber-100/80">
+      <ul className="mt-2 max-h-28 space-y-1 overflow-y-auto text-[11px] text-[color:var(--warn-fg)] opacity-90">
         {offline.pending.slice(0, 8).map((p) => (
           <li key={p.id} className="truncate font-medium">
             · {p.entityType}/{p.actionType} · {p.id.slice(0, 8)}

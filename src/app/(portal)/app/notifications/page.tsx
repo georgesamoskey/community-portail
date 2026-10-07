@@ -120,7 +120,7 @@ export default function NotificationsPage() {
           {t("notifications.empty")}
         </div>
       ) : (
-        <ul className="divide-y divide-brand-100 overflow-hidden rounded-2xl border border-brand-100 bg-white/80 shadow-sm">
+        <ul className="divide-y divide-brand-100 overflow-hidden rounded-2xl border border-brand-100 bg-surface/80 shadow-soft">
           {items.map((n) => {
             const unreadRow = !n.isRead && !n.readAt;
             return (

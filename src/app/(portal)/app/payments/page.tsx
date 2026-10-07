@@ -74,7 +74,7 @@ export default function PaymentsPage() {
           title={t("payments.title")}
           description={t("payments.desc")}
         />
-        <div className="rounded-2xl border border-brand-200 bg-gradient-to-br from-brand-50 to-white p-8 text-center shadow-sm">
+        <div className="rounded-2xl border border-brand-200 bg-gradient-to-br from-brand-50 to-surface p-8 text-center shadow-soft">
           <p className="font-display text-xl font-semibold text-brand-900">
             {t("payments.premium")}
           </p>

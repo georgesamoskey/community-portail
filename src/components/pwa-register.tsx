@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { haptic } from "@/lib/native";
+import { prepareForOffline } from "@/lib/offline/sync-manager";
 
 /** Enregistre le SW + feedback install + check update au focus. */
 export function PwaRegister() {
@@ -10,7 +11,11 @@ export function PwaRegister() {
       return;
     }
 
-    const onInstalled = () => haptic("success");
+    const onInstalled = () => {
+      haptic("celebrate");
+      localStorage.setItem("akiba-pwa-installed", "1");
+      void prepareForOffline(true).catch(() => undefined);
+    };
     window.addEventListener("appinstalled", onInstalled);
 
     let reg: ServiceWorkerRegistration | null = null;
@@ -20,6 +25,24 @@ export function PwaRegister() {
         .register("/sw.js")
         .then((r) => {
           reg = r;
+          // SW déjà waiting (maj précédente non appliquée)
+          if (r.waiting) {
+            window.dispatchEvent(
+              new CustomEvent("akiba:sw-waiting", { detail: r.waiting }),
+            );
+          }
+          r.addEventListener("updatefound", () => {
+            const sw = r.installing;
+            sw?.addEventListener("statechange", () => {
+              if (sw.state === "installed" && navigator.serviceWorker.controller) {
+                window.dispatchEvent(
+                  new CustomEvent("akiba:sw-waiting", {
+                    detail: r.waiting ?? sw,
+                  }),
+                );
+              }
+            });
+          });
         })
         .catch(() => undefined);
     }
@@ -28,21 +51,24 @@ export function PwaRegister() {
       e.preventDefault();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).__akibaDeferredInstall = e;
+      window.dispatchEvent(new CustomEvent("akiba:install-ready"));
     };
     window.addEventListener("beforeinstallprompt", onBip);
 
     const onFocus = () => {
-      void reg?.update();
+      void reg?.update().catch(() => undefined);
     };
     window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", () => {
+    const onVis = () => {
       if (document.visibilityState === "visible") onFocus();
-    });
+    };
+    document.addEventListener("visibilitychange", onVis);
 
     return () => {
       window.removeEventListener("appinstalled", onInstalled);
       window.removeEventListener("beforeinstallprompt", onBip);
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, []);
   return null;

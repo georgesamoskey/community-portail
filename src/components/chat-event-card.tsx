@@ -10,27 +10,29 @@ const CARD: Record<
   milestone_reached: {
     emoji: "🎯",
     title: "Palier atteint",
-    className: "border-amber-200 bg-gradient-to-br from-amber-50 to-white",
+    className:
+      "border-[color:var(--warn-border)] bg-gradient-to-br from-[var(--warn-bg)] to-surface",
   },
   goal_reached: {
     emoji: "🏁",
     title: "Objectif atteint",
-    className: "border-mint-200 bg-gradient-to-br from-mint-50 to-white",
+    className: "border-mint-200 bg-gradient-to-br from-mint-50 to-surface",
   },
   cotisation_confirmed: {
     emoji: "✅",
     title: "Cotisation confirmée",
-    className: "border-brand-200 bg-gradient-to-br from-brand-50 to-white",
+    className: "border-brand-200 bg-gradient-to-br from-brand-50 to-surface",
   },
   cotisation_new: {
     emoji: "💸",
     title: "Cotisation déclarée",
-    className: "border-sky-200 bg-gradient-to-br from-sky-50 to-white",
+    className:
+      "border-[color:var(--info-border)] bg-gradient-to-br from-[var(--info-bg)] to-surface",
   },
   commitment: {
     emoji: "🤝",
     title: "Engagement",
-    className: "border-violet-200 bg-gradient-to-br from-violet-50 to-white",
+    className: "border-brand-200/80 bg-gradient-to-br from-brand-50/80 to-mint-50/40",
   },
   participant_joined: {
     emoji: "👋",
@@ -45,7 +47,8 @@ const CARD: Record<
   contribution_closed: {
     emoji: "🔒",
     title: "Cagnotte clôturée",
-    className: "border-rose-200 bg-rose-50",
+    className:
+      "border-[color:var(--danger-border)] bg-[var(--danger-bg)] text-[color:var(--danger-fg)]",
   },
   tontine_round_paid: {
     emoji: "✅",
@@ -55,7 +58,8 @@ const CARD: Record<
   tontine_defaulted: {
     emoji: "⚠️",
     title: "Défaut",
-    className: "border-rose-200 bg-rose-50",
+    className:
+      "border-[color:var(--danger-border)] bg-[var(--danger-bg)] text-[color:var(--danger-fg)]",
   },
   tontine_round_completed: {
     emoji: "🔄",
@@ -65,7 +69,8 @@ const CARD: Record<
   tontine_completed: {
     emoji: "🏆",
     title: "Tontine terminée",
-    className: "border-amber-200 bg-amber-50",
+    className:
+      "border-[color:var(--warn-border)] bg-[var(--warn-bg)] text-[color:var(--warn-fg)]",
   },
   daily_summary: {
     emoji: "☀️",

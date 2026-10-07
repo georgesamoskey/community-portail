@@ -263,7 +263,7 @@ export default function TontinesPage() {
           {items.map((item, i) => (
             <li
               key={item.id ?? i}
-              className="flex flex-wrap items-center gap-2 rounded-2xl border border-brand-100 bg-white/80 p-4 shadow-sm transition hover:border-brand-300 hover:shadow-md"
+              className="flex flex-wrap items-center gap-2 rounded-2xl border border-brand-100 bg-surface/80 p-4 shadow-soft transition hover:border-brand-300 hover:shadow-lift"
             >
               <Link
                 href={item.id ? `/app/tontines/${item.id}` : "/app/tontines"}

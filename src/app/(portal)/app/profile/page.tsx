@@ -9,6 +9,7 @@ import { bffFetch, BffError } from "@/lib/bff-fetch";
 import { MemberAvatar } from "@/components/member-avatar";
 import { MobileHero, SettingsRow } from "@/components/mobile-iso";
 import { LocaleSwitcher } from "@/components/locale-switcher";
+import { ThemeSwitcher } from "@/components/native-plus";
 import { countryLabel } from "@/lib/country-flag";
 import { normalizeCountry } from "@/lib/i18n/config";
 
@@ -142,12 +143,17 @@ export default function ProfileHubPage() {
           subtitle={t("native.labHint")}
         />
         <div className="h-px bg-ink/[0.06]" />
-        <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div>
             <p className="text-sm font-semibold text-ink">{t("common.language")}</p>
             <p className="text-xs text-ink-mute">{t("profile.menuLangHint")}</p>
           </div>
           <LocaleSwitcher compact showCountry={false} />
+        </div>
+        <div className="h-px bg-ink/[0.06]" />
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <p className="text-sm font-semibold text-ink">{t("native.theme")}</p>
+          <ThemeSwitcher compact />
         </div>
         <div className="h-px bg-ink/[0.06]" />
         <SettingsRow

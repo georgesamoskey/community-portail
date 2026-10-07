@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -44,6 +45,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
   const [pendingCount, setPendingCount] = useState(0);
   const [pending, setPending] = useState<PendingSyncItem[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const flushing = useRef(false);
 
   const refresh = useCallback(async () => {
     setOnline(isOnline());
@@ -55,6 +57,19 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
     setPending(list);
   }, []);
 
+  const flush = useCallback(async () => {
+    if (flushing.current) return;
+    flushing.current = true;
+    setSyncing(true);
+    try {
+      await flushPendingSync();
+      await refresh();
+    } finally {
+      setSyncing(false);
+      flushing.current = false;
+    }
+  }, [refresh]);
+
   useEffect(() => {
     const stop = startOfflineSyncRuntime();
     void refresh();
@@ -64,26 +79,36 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
     const onMsg = (event: MessageEvent) => {
       const type = (event.data as { type?: string } | null)?.type;
       if (type === "AKIBA_FLUSH_SYNC" || type === "AKIBA_PERIODIC_SYNC") {
-        void flushPendingSync().then(() => refresh());
+        void flush();
       }
     };
     navigator.serviceWorker?.addEventListener("message", onMsg);
+
+    const onOnline = () => {
+      setOnline(true);
+      void (async () => {
+        const count = await getPendingCount();
+        if (count > 0) await flush();
+        else await refresh();
+        window.dispatchEvent(
+          new CustomEvent("akiba:online-sync", { detail: { pending: count } }),
+        );
+      })();
+    };
+    const onOffline = () => {
+      setOnline(false);
+    };
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+
     return () => {
       stop();
       unsub();
       navigator.serviceWorker?.removeEventListener("message", onMsg);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
     };
-  }, [refresh]);
-
-  const flush = useCallback(async () => {
-    setSyncing(true);
-    try {
-      await flushPendingSync();
-      await refresh();
-    } finally {
-      setSyncing(false);
-    }
-  }, [refresh]);
+  }, [refresh, flush]);
 
   const prepare = useCallback(async () => {
     await prepareForOffline(true);

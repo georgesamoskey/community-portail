@@ -51,10 +51,10 @@ export function Alert({
   children: React.ReactNode;
 }) {
   const styles = {
-    amber: "bg-amber-50 text-amber-950 border-amber-200/80",
+    amber: "border-[color:var(--warn-border)] bg-[var(--warn-bg)] text-[color:var(--warn-fg)]",
     rose: "bg-brand-50 text-brand-900 border-brand-200",
     teal: "bg-mint-50 text-mint-900 border-mint-200",
-    sky: "bg-sky-50 text-sky-950 border-sky-200/80",
+    sky: "border-[color:var(--info-border)] bg-[var(--info-bg)] text-[color:var(--info-fg)]",
   }[tone];
   return (
     <div
@@ -217,9 +217,9 @@ export function Badge({
   const styles = {
     neutral: "bg-ink/[0.05] text-ink-soft",
     ok: "bg-mint-100 text-mint-800",
-    warn: "bg-amber-100 text-amber-900",
+    warn: "bg-[var(--warn-bg)] text-[color:var(--warn-fg)]",
     bad: "bg-brand-100 text-brand-800",
-    info: "bg-sky-100 text-sky-900",
+    info: "bg-[var(--info-bg)] text-[color:var(--info-fg)]",
   }[tone];
   return (
     <span

@@ -23,7 +23,7 @@ import {
   PullToRefresh,
   SheetLink,
 } from "@/components/native-ux";
-import { NetworkQualityChip } from "@/components/native-plus";
+import { NetworkQualityChip, ThemeSwitcher } from "@/components/native-plus";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { haptic } from "@/lib/native";
 
@@ -225,7 +225,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   }, [router, refreshNotif, refreshChat]);
 
   return (
-    <div className="min-h-dvh text-ink akiba-app-shell">
+    <div className="min-h-dvh text-ink akiba-app-shell pt-[env(safe-area-inset-top)]">
       <NativeRuntime badgeCount={badgeTotal} />
 
       <header className="sticky top-0 z-40 hidden border-b border-ink/[0.06] bg-surface/90 backdrop-blur-xl md:block">
@@ -484,6 +484,10 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             <p className="text-xs text-ink-mute">{t("native.quickAccess")}</p>
           </div>
           <LocaleSwitcher compact showCountry={false} />
+        </div>
+        <div className="mb-3 flex items-center justify-between rounded-2xl border border-ink/[0.06] bg-surface px-3 py-2.5">
+          <p className="text-xs font-semibold text-ink-mute">{t("native.theme")}</p>
+          <ThemeSwitcher compact />
         </div>
         <div className="divide-y divide-ink/[0.05] rounded-2xl border border-ink/[0.06] bg-surface">
           <SheetLink

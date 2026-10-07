@@ -2,9 +2,10 @@ import type { Config } from "tailwindcss";
 
 /**
  * Palette « Confiance & Assurance » — ISO Android (Color.kt)
- * Trust Blue #337AB7 · Navy · Trust Teal · Confidence Gold
+ * Trust Blue · Navy · Trust Teal — tokens CSS (:root / html.dark)
  */
 export default {
+  darkMode: "class",
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
@@ -12,34 +13,34 @@ export default {
         background: "var(--background)",
         foreground: "var(--foreground)",
         ink: {
-          DEFAULT: "#0D1F33",
-          soft: "#2C4A6B",
-          mute: "#546E8A",
-          faint: "#7A9AB5",
+          DEFAULT: "var(--ink)",
+          soft: "var(--ink-soft)",
+          mute: "var(--ink-mute)",
+          faint: "var(--ink-faint)",
         },
         brand: {
-          50: "#D6EAF8",
-          100: "#B8D9F0",
-          200: "#8BC0E4",
-          300: "#5B9FD4",
-          400: "#458FC8",
-          500: "#337AB7",
-          600: "#1A5276",
-          700: "#0D3B6B",
-          800: "#0A1F3D",
-          900: "#061428",
+          50: "var(--brand-50)",
+          100: "var(--brand-100)",
+          200: "var(--brand-200)",
+          300: "var(--brand-300)",
+          400: "var(--brand-400)",
+          500: "var(--brand-500)",
+          600: "var(--brand-600)",
+          700: "var(--brand-700)",
+          800: "var(--brand-800)",
+          900: "var(--brand-900)",
         },
         mint: {
-          50: "#E6F7F8",
-          100: "#C5EEF1",
-          200: "#8ADDE4",
-          300: "#3BBFCC",
-          400: "#1AABBA",
-          500: "#0E9AA7",
-          600: "#0A7580",
-          700: "#085A63",
-          800: "#06464D",
-          900: "#04353A",
+          50: "var(--mint-50)",
+          100: "var(--mint-100)",
+          200: "var(--mint-200)",
+          300: "var(--mint-300)",
+          400: "var(--mint-400)",
+          500: "var(--mint-500)",
+          600: "var(--mint-600)",
+          700: "var(--mint-700)",
+          800: "var(--mint-800)",
+          900: "var(--mint-900)",
         },
         surface: {
           DEFAULT: "var(--surface)",
@@ -65,9 +66,9 @@ export default {
         tightest: "-0.04em",
       },
       boxShadow: {
-        soft: "0 1px 2px rgba(10,31,61,0.04), 0 8px 24px rgba(10,31,61,0.06)",
-        lift: "0 12px 40px rgba(51,122,183,0.18), 0 4px 12px rgba(10,31,61,0.06)",
-        chat: "0 0 0 1px rgba(10,31,61,0.04), 0 20px 50px rgba(10,31,61,0.08)",
+        soft: "var(--shadow-soft)",
+        lift: "var(--shadow-lift)",
+        chat: "var(--shadow-chat)",
       },
       borderRadius: {
         "2.5xl": "1.25rem",
