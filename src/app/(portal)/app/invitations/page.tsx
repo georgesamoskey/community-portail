@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useI18n } from "@/lib/i18n/context";
+import { bffFetch } from "@/lib/bff-fetch";
 import { useBff } from "@/lib/use-bff";
 import { useAction } from "@/lib/use-action";
 import { normalizeList } from "@/lib/portal-api";
@@ -27,6 +28,7 @@ type Invitation = {
   phone?: string;
   contributionId?: string;
   contribution?: { id?: string; title?: string };
+  invitationCode?: string;
   message?: string;
   createdAt?: string;
   token?: string;
@@ -70,24 +72,19 @@ export default function InvitationsPage() {
   const trustByUser = useTrustBatch(inviteeList.map((u) => u.userId));
 
   const accept = (inv: Invitation) => {
-    if (inv.token) {
-      void action.mutate(
-        `/invitations/accept/${inv.token}`,
-        { method: "POST", body: JSON.stringify({}) },
-        {
-          success: t("invitations.accepted"),
-          onDone: () => void received.refresh(),
-        },
-      );
-      return;
-    }
-    if (inv.id) {
-      void action.mutate(
-        `/invitations/${inv.id}`,
-        { method: "GET" },
-        { success: t("invitations.detailLoaded") },
-      );
-    }
+    const code = inv.invitationCode ?? inv.token;
+    if (!code) return;
+    void action.run(async () => {
+      const me = await bffFetch<{ id?: string }>("/users/me");
+      if (!me?.id) throw new Error(t("invite.needAuth"));
+      return bffFetch(`/invitations/accept/${encodeURIComponent(code)}`, {
+        method: "POST",
+        body: JSON.stringify({ userId: me.id }),
+      });
+    }, {
+      success: t("invitations.accepted"),
+      onDone: () => void received.refresh(),
+    });
   };
 
   const resend = (id: string) =>
@@ -268,13 +265,14 @@ export default function InvitationsPage() {
                     {t("invitations.pot")}
                   </Link>
                 ) : null}
-                {tab === "received" && (
+                {tab === "received" &&
+                  (inv.invitationCode || inv.token) &&
+                  (inv.status === "pending" || !inv.status) && (
                   <Btn
-                    className="text-xs"
                     disabled={action.busy}
                     onClick={() => accept(inv)}
                   >
-                    {t("invitations.accept")}
+                    {t("invite.accept")}
                   </Btn>
                 )}
                 {tab === "sent" && inv.id && (

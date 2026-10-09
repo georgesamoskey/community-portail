@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import type { JWT } from "next-auth/jwt";
 import {
@@ -13,6 +13,24 @@ import {
 const issuer = process.env.AUTH_KEYCLOAK_ISSUER;
 const clientId = process.env.AUTH_KEYCLOAK_ID ?? "portal";
 const clientSecret = process.env.AUTH_KEYCLOAK_SECRET;
+
+class PhoneCountryError extends CredentialsSignin {
+  code = "phone_country";
+}
+
+function apiMessage(data: unknown): string {
+  if (!data || typeof data !== "object") return "";
+  const message = (data as { message?: unknown }).message;
+  if (typeof message === "string") return message;
+  if (Array.isArray(message)) {
+    return message.filter((item) => typeof item === "string").join(" ");
+  }
+  return "";
+}
+
+function rejectPhoneCountry(message: string): void {
+  if (/num[eé]ro/i.test(message)) throw new PhoneCountryError();
+}
 
 function apiOrigin(): string {
   return (
@@ -203,7 +221,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             lastName?: string;
           };
         };
-        if (!res.ok || !data.accessToken) return null;
+        if (!res.ok || !data.accessToken) {
+          rejectPhoneCountry(apiMessage(data));
+          return null;
+        }
         const roles = rolesFromAccessToken(data.accessToken);
         const label =
           [data.user?.firstName, data.user?.lastName].filter(Boolean).join(" ") ||
@@ -260,7 +281,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             lastName?: string;
           };
         };
-        if (!res.ok || !data.accessToken) return null;
+        if (!res.ok || !data.accessToken) {
+          rejectPhoneCountry(apiMessage(data));
+          return null;
+        }
         const roles = rolesFromAccessToken(data.accessToken);
         const label =
           [data.user?.firstName, data.user?.lastName].filter(Boolean).join(" ") ||

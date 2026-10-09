@@ -140,6 +140,15 @@ export type NotificationRow = {
   body?: string;
   type?: string;
   isRead?: boolean;
+  read?: boolean;
   readAt?: string | null;
   createdAt?: string;
+  actionUrl?: string;
+  data?: {
+    invitationId?: string;
+    invitationCode?: string;
+    invitationUrl?: string;
+    contributionId?: string;
+    tontineId?: string;
+  };
 };

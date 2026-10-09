@@ -6,6 +6,7 @@
  */
 
 import { bffFetch, BffError } from "@/lib/bff-fetch";
+import { flushChatOutbox } from "@/lib/flush-chat-outbox";
 import { checksumForData } from "./checksum";
 import {
   countPending,
@@ -219,7 +220,9 @@ async function syncCotisationBatch(
   }
 }
 
-export async function flushPendingSync(): Promise<{
+export async function flushPendingSync(opts?: {
+  includeFailed?: boolean;
+}): Promise<{
   synced: number;
   failed: number;
 }> {
@@ -230,7 +233,11 @@ export async function flushPendingSync(): Promise<{
   try {
     await gcPending();
     const all = await listPending();
-    const cotisations = all.filter((a) => a.entityType === TYPE_COTISATION);
+    const cotisations = all.filter((a) => {
+      if (a.entityType !== TYPE_COTISATION) return false;
+      if (!opts?.includeFailed && a.status === "failed") return false;
+      return true;
+    });
     if (cotisations.length === 0) return { synced: 0, failed: 0 };
 
     for (const a of cotisations) {
@@ -301,7 +308,9 @@ export function startOfflineSyncRuntime(): () => void {
   started = true;
 
   const onOnline = () => {
-    void flushPendingSync().then(() => prepareForOffline());
+    void flushPendingSync()
+      .then(() => flushChatOutbox())
+      .then(() => prepareForOffline());
   };
   const onOffline = () => notify();
 
@@ -309,11 +318,14 @@ export function startOfflineSyncRuntime(): () => void {
   window.addEventListener("offline", onOffline);
 
   if (isOnline()) {
-    void flushPendingSync().then(() => prepareForOffline());
+    void flushPendingSync()
+      .then(() => flushChatOutbox())
+      .then(() => prepareForOffline());
   }
 
   periodicTimer = setInterval(() => {
-    if (isOnline()) void flushPendingSync();
+    if (!isOnline()) return;
+    void flushPendingSync().then(() => flushChatOutbox());
   }, PERIODIC_FLUSH_MS);
 
   // Background Sync API (Chrome / Android PWA)

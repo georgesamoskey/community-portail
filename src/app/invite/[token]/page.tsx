@@ -37,9 +37,9 @@ export default function InviteTokenPage() {
       setLoading(true);
       try {
         const res = await fetch(`/api/public/invitations/${encodeURIComponent(token)}`);
-        const data = (await res.json()) as InvitePreview;
+        const data = (await res.json()) as InvitePreview & { message?: string };
         if (!cancelled) {
-          if (!res.ok) setErr(data.error ?? t("invite.notFound"));
+          if (!res.ok) setErr(data.error ?? data.message ?? t("invite.notFound"));
           else setPreview(data);
         }
       } catch (e) {

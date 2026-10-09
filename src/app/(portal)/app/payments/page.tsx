@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n/context";
@@ -8,7 +8,9 @@ import { hasPermission, Permission } from "@/lib/portal-permissions";
 import { useBff } from "@/lib/use-bff";
 import { useAction } from "@/lib/use-action";
 import { bffFetch, BffError } from "@/lib/bff-fetch";
-import { normalizeList } from "@/lib/portal-api";
+import { MmPayFields } from "@/components/mm-pay-fields";
+import { railSlug } from "@/lib/mm-market";
+import { useMarketCountry } from "@/lib/use-market-country";
 import {
   Alert,
   Badge,
@@ -19,13 +21,6 @@ import {
   Panel,
   statusTone,
 } from "@/lib/ui";
-
-type Provider = {
-  slug?: string;
-  id?: string;
-  name?: string;
-  country?: string;
-};
 
 type Tx = {
   id?: string;
@@ -42,12 +37,11 @@ export default function PaymentsPage() {
   const canPay = hasPermission(roles, Permission.PORTAL_PAYMENTS);
   const action = useAction();
 
-  const providers = useBff<unknown>(
-    canPay ? "/mobile-money/providers?capability=collection" : null,
-  );
+  const market = useMarketCountry();
+  const [currency, setCurrency] = useState("");
   const preview = useBff<Record<string, unknown> | null>(
-    canPay
-      ? "/fees/preview?grossAmount=10000&currency=BIF&source=cotisation"
+    canPay && currency
+      ? `/fees/preview?grossAmount=10000&currency=${currency}&source=cotisation`
       : null,
   );
 
@@ -55,17 +49,15 @@ export default function PaymentsPage() {
   const [phone, setPhone] = useState("");
   const [provider, setProvider] = useState("");
   const [description, setDescription] = useState("");
-  const [currency, setCurrency] = useState("BIF");
   const [feeLive, setFeeLive] = useState<Record<string, unknown> | null>(null);
   const [lastTx, setLastTx] = useState<Tx | null>(null);
   const [busyFee, setBusyFee] = useState(false);
   const [feeMsg, setFeeMsg] = useState<string | null>(null);
 
-  const providerList = useMemo(
-    () =>
-      normalizeList<Provider>(providers.data, ["items", "providers", "data"]),
-    [providers.data],
-  );
+  useEffect(() => {
+    if (phone || !market.phone) return;
+    setPhone(market.phone);
+  }, [market.phone, phone]);
 
   if (!canPay) {
     return (
@@ -119,7 +111,7 @@ export default function PaymentsPage() {
       {
         method: "POST",
         body: JSON.stringify({
-          provider,
+          provider: railSlug(provider),
           payerPhone: phone.trim(),
           amount: Number(amount),
           currency,
@@ -169,66 +161,33 @@ export default function PaymentsPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title={t("payments.providers")}>
-          {providers.loading && (
-            <p className="text-sm text-brand-600">{t("common.loading")}</p>
-          )}
-          {providers.error && (
-            <p className="text-sm text-amber-800">{providers.error}</p>
-          )}
-          {!providers.loading && providerList.length === 0 && (
-            <p className="text-sm text-brand-600">{t("payments.noProviders")}</p>
-          )}
-          <ul className="mt-3 space-y-2">
-            {providerList.map((p) => {
-              const slug = p.slug ?? p.id ?? p.name ?? "?";
-              return (
-                <li key={slug}>
-                  <button
-                    type="button"
-                    onClick={() => setProvider(slug)}
-                    className={`w-full rounded-xl border px-3 py-2 text-left text-sm ${
-                      provider === slug
-                        ? "border-brand-500 bg-brand-50"
-                        : "border-brand-100 hover:bg-brand-50/50"
-                    }`}
-                  >
-                    <span className="font-medium">{p.name ?? slug}</span>
-                    {p.country ? (
-                      <span className="ml-2 text-xs text-brand-600">
-                        {p.country}
-                      </span>
-                    ) : null}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="space-y-3">
+            <MmPayFields
+              country={market.country}
+              capability="collection"
+              provider={provider}
+              onProvider={setProvider}
+              phone={phone}
+              onPhone={setPhone}
+              currency={currency}
+              onCurrency={setCurrency}
+            />
+          </div>
         </Panel>
 
         <Panel title={t("payments.init")}>
           <div className="space-y-3">
             <Field label={t("common.amount")}>
-              <input
-                className={inputClass}
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </Field>
-            <Field label={t("payments.currency")}>
-              <input
-                className={inputClass}
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-                maxLength={3}
-              />
-            </Field>
-            <Field label={t("payments.payerPhone")}>
-              <input
-                className={inputClass}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+25779123456"
-              />
+              <div className="relative">
+                <input
+                  className={`${inputClass} pr-16`}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-bold text-ink-mute">
+                  {currency}
+                </span>
+              </div>
             </Field>
             <Field label={t("common.description")}>
               <input
@@ -237,9 +196,6 @@ export default function PaymentsPage() {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder={t("payments.defaultDesc")}
               />
-            </Field>
-            <Field label={t("tontines.provider")}>
-              <input className={inputClass} value={provider} readOnly />
             </Field>
             <div className="flex flex-wrap gap-2">
               <Btn

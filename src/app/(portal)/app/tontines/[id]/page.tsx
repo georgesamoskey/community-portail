@@ -27,6 +27,18 @@ import { MemberAvatar } from "@/components/member-avatar";
 import { MemberTrustBadge } from "@/components/member-trust-badge";
 import { useTrustBatch } from "@/lib/use-trust-batch";
 import { memberDisplayName } from "@/lib/member-display";
+import { MmPayFields } from "@/components/mm-pay-fields";
+import {
+  marketDial,
+  providerLabel,
+  providerOptionKey,
+  providersPath,
+  railSlug,
+  retargetPhone,
+  type MmProvider,
+} from "@/lib/mm-market";
+import { displayCurrency } from "@/lib/mm-market";
+import { useMarketCountry } from "@/lib/use-market-country";
 
 type Member = {
   id?: string;
@@ -59,6 +71,7 @@ type TontineDetail = {
   type?: string;
   contributionAmount?: number;
   currency?: string;
+  country?: string;
   seats?: number;
   frequency?: string;
   orderStrategy?: string;
@@ -113,12 +126,17 @@ export default function TontineDetailPage() {
   const { t } = useI18n();
 
   const detail = useBff<TontineDetail>(id ? `/tontines/${id}` : null);
+  const payMarket = useMarketCountry(detail.data?.country);
   const rounds = useBff<unknown>(id ? `/tontines/${id}/rounds` : null);
   const providers = useBff<unknown>(
-    canPay ? "/mobile-money/providers?capability=collection" : null,
+    canPay && payMarket.country
+      ? providersPath(payMarket.country, "collection")
+      : null,
   );
   const disburseProviders = useBff<unknown>(
-    canPay ? "/mobile-money/providers?capability=disbursement" : null,
+    canPay && payMarket.country
+      ? providersPath(payMarket.country, "disbursement")
+      : null,
   );
 
   const ton = detail.data;
@@ -158,7 +176,7 @@ export default function TontineDetailPage() {
 
   const providerList = useMemo(
     () =>
-      normalizeList<{ slug?: string; id?: string; name?: string }>(
+      normalizeList<MmProvider>(
         providers.data,
         ["items", "providers", "data"],
       ),
@@ -166,7 +184,7 @@ export default function TontineDetailPage() {
   );
   const disburseProviderList = useMemo(
     () =>
-      normalizeList<{ slug?: string; id?: string; name?: string }>(
+      normalizeList<MmProvider>(
         disburseProviders.data,
         ["items", "providers", "data"],
       ),
@@ -211,6 +229,29 @@ export default function TontineDetailPage() {
   const [welfareUserId, setWelfareUserId] = useState("");
   const [welfareAmount, setWelfareAmount] = useState("");
   const [welfareNote, setWelfareNote] = useState("");
+  const dial = payMarket.country ? marketDial(payMarket.country) : "";
+
+  useEffect(() => {
+    const keys = providerList.map(providerOptionKey).filter(Boolean);
+    if (keys.length && !keys.includes(provider)) setProvider(keys[0]);
+    if (keys.length && !keys.includes(ascaDepositProvider)) {
+      setAscaDepositProvider(keys[0]);
+    }
+  }, [providerList, provider, ascaDepositProvider]);
+
+  useEffect(() => {
+    const keys = disburseProviderList.map(providerOptionKey).filter(Boolean);
+    if (keys.length && !keys.includes(disburseProvider)) {
+      setDisburseProvider(keys[0]);
+    }
+  }, [disburseProviderList, disburseProvider]);
+
+  useEffect(() => {
+    if (!dial) return;
+    setPayerPhone((value) => retargetPhone(value, dial));
+    setDisbursePhone((value) => retargetPhone(value, dial));
+    setAscaDepositPhone((value) => retargetPhone(value, dial));
+  }, [dial]);
 
   useEffect(() => {
     markChecklist("opened_tontine");
@@ -401,7 +442,7 @@ export default function TontineDetailPage() {
         method: "POST",
         body: JSON.stringify({
           payerUserId,
-          provider,
+          provider: railSlug(provider),
           payerPhone,
         }),
       },
@@ -437,7 +478,7 @@ export default function TontineDetailPage() {
     if (disburseRound == null && !disburseAscaLoanId) return;
     const destination =
       disburseMethod === "mobile_money"
-        ? { provider: disburseProvider, phone: disbursePhone }
+        ? { provider: railSlug(disburseProvider), phone: disbursePhone }
         : disburseMethod === "cash"
           ? { handlerName: "Cash desk", notes: "Remise en main propre" }
           : {
@@ -537,7 +578,7 @@ export default function TontineDetailPage() {
               <Badge tone="info">{ton.type.toUpperCase()}</Badge>
             ) : null}
             <Badge>
-              {money(ton.contributionAmount, ton.currency ?? "BIF")} / tour
+              {money(ton.contributionAmount, displayCurrency(ton.currency, ton.country))} / tour
             </Badge>
             {ton.frequency ? <Badge tone="info">{ton.frequency}</Badge> : null}
             {ton.seats != null ? <Badge>{ton.seats} places</Badge> : null}
@@ -553,21 +594,21 @@ export default function TontineDetailPage() {
                   Total :{" "}
                   {money(
                     asca.data?.fundTotal,
-                    asca.data?.currency ?? ton.currency ?? "BIF",
+                    displayCurrency(asca.data?.currency ?? ton.currency, ton.country),
                   )}
                 </Badge>
                 <Badge tone="info">
                   Disponible :{" "}
                   {money(
                     asca.data?.fundAvailable,
-                    asca.data?.currency ?? ton.currency ?? "BIF",
+                    displayCurrency(asca.data?.currency ?? ton.currency, ton.country),
                   )}
                 </Badge>
                 <Badge>
                   Fonds social :{" "}
                   {money(
                     asca.data?.socialFundTotal,
-                    asca.data?.currency ?? ton.currency ?? "BIF",
+                    displayCurrency(asca.data?.currency ?? ton.currency, ton.country),
                   )}
                 </Badge>
                 <Badge tone="info">
@@ -616,10 +657,10 @@ export default function TontineDetailPage() {
                       >
                         <option value="">{t("tontines.choose")}</option>
                         {providerList.map((p) => {
-                          const slug = p.slug ?? p.id ?? "";
+                          const key = providerOptionKey(p);
                           return (
-                            <option key={slug} value={slug}>
-                              {p.name ?? slug}
+                            <option key={key} value={key}>
+                              {providerLabel(p)}
                             </option>
                           );
                         })}
@@ -649,7 +690,7 @@ export default function TontineDetailPage() {
                           method: "POST",
                           body: JSON.stringify({
                             amount: Number(ascaDepositAmount),
-                            provider: ascaDepositProvider,
+                            provider: railSlug(ascaDepositProvider),
                             payerPhone: ascaDepositPhone,
                           }),
                         },
@@ -782,7 +823,7 @@ export default function TontineDetailPage() {
                             {labelForUserId(a.userId)} ·{" "}
                             {money(
                               a.balance,
-                              asca.data?.currency ?? ton.currency ?? "BIF",
+                              displayCurrency(asca.data?.currency ?? ton.currency, ton.country),
                             )}{" "}
                             · {a.shares ?? 0} parts
                           </span>
@@ -801,17 +842,17 @@ export default function TontineDetailPage() {
                           >
                             <option value="">{t("tontines.choose")}</option>
                             {disburseProviderList.map((p) => {
-                              const slug = p.slug ?? p.id ?? "";
+                              const key = providerOptionKey(p);
                               return (
-                                <option key={slug} value={slug}>
-                                  {p.name ?? slug}
+                                <option key={key} value={key}>
+                                  {providerLabel(p)}
                                 </option>
                               );
                             })}
                           </select>
                           <input
                             className={inputClass}
-                            placeholder="+257…"
+                            placeholder={payMarket.country ? marketDial(payMarket.country) : "+"}
                             value={shareOutDest[a.userId ?? ""]?.phone ?? ""}
                             onChange={(e) =>
                               setShareOutDest((prev) => ({
@@ -838,7 +879,7 @@ export default function TontineDetailPage() {
                             .filter(([, d]) => d.provider && d.phone)
                             .map(([userId, d]) => ({
                               userId,
-                              provider: d.provider,
+                              provider: railSlug(d.provider),
                               phone: d.phone,
                             }))
                         : undefined;
@@ -889,7 +930,7 @@ export default function TontineDetailPage() {
                             {labelForUserId(loan.borrowerUserId)} ·{" "}
                             {money(
                               loan.principal,
-                              asca.data?.currency ?? ton.currency ?? "BIF",
+                              displayCurrency(asca.data?.currency ?? ton.currency, ton.country),
                             )}
                           </span>
                           <Btn
@@ -955,7 +996,7 @@ export default function TontineDetailPage() {
                             {loan.borrowerUserId?.slice(0, 8)}… · dû{" "}
                             {money(
                               loan.amountOwed ?? loan.principal,
-                              asca.data?.currency ?? ton.currency ?? "BIF",
+                              displayCurrency(asca.data?.currency ?? ton.currency, ton.country),
                             )}
                           </span>
                           <Btn
@@ -1026,7 +1067,7 @@ export default function TontineDetailPage() {
                             {labelForUserId(loan.borrowerUserId)} ·{" "}
                             {money(
                               loan.principal,
-                              asca.data?.currency ?? ton.currency ?? "BIF",
+                              displayCurrency(asca.data?.currency ?? ton.currency, ton.country),
                             )}
                           </span>
                           <Btn
@@ -1467,31 +1508,14 @@ export default function TontineDetailPage() {
                       onChange={(e) => setPayerUserId(e.target.value)}
                     />
                   </Field>
-                  <Field label={t("tontines.provider")}>
-                    <select
-                      className={inputClass}
-                      value={provider}
-                      onChange={(e) => setProvider(e.target.value)}
-                    >
-                      <option value="">{t("tontines.choose")}</option>
-                      {providerList.map((p) => {
-                        const slug = p.slug ?? p.id ?? "";
-                        return (
-                          <option key={slug} value={slug}>
-                            {p.name ?? slug}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </Field>
-                  <Field label={t("tontines.phoneE164")} hint="ex. +25779123456">
-                    <input
-                      className={inputClass}
-                      value={payerPhone}
-                      onChange={(e) => setPayerPhone(e.target.value)}
-                      placeholder="+257…"
-                    />
-                  </Field>
+                  <MmPayFields
+                    country={payMarket.country}
+                    capability="collection"
+                    provider={provider}
+                    onProvider={setProvider}
+                    phone={payerPhone}
+                    onPhone={setPayerPhone}
+                  />
                 </div>
               )}
               <div className="mt-4 flex flex-wrap gap-2">
@@ -1585,30 +1609,14 @@ export default function TontineDetailPage() {
                 </Field>
                 {disburseMethod === "mobile_money" && (
                   <>
-                    <Field label={t("tontines.provider")}>
-                      <select
-                        className={inputClass}
-                        value={disburseProvider}
-                        onChange={(e) => setDisburseProvider(e.target.value)}
-                      >
-                        <option value="">{t("tontines.choose")}</option>
-                        {disburseProviderList.map((p) => {
-                          const slug = p.slug ?? p.id ?? "";
-                          return (
-                            <option key={slug} value={slug}>
-                              {p.name ?? slug}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </Field>
-                    <Field label={t("common.phone")}>
-                      <input
-                        className={inputClass}
-                        value={disbursePhone}
-                        onChange={(e) => setDisbursePhone(e.target.value)}
-                      />
-                    </Field>
+                    <MmPayFields
+                      country={payMarket.country}
+                      capability="disbursement"
+                      provider={disburseProvider}
+                      onProvider={setDisburseProvider}
+                      phone={disbursePhone}
+                      onPhone={setDisbursePhone}
+                    />
                   </>
                 )}
               </div>
@@ -1634,10 +1642,10 @@ export default function TontineDetailPage() {
                   >
                     <option value="">{t("tontines.choose")}</option>
                     {disburseProviderList.map((p) => {
-                      const slug = p.slug ?? p.id ?? "";
+                      const key = providerOptionKey(p);
                       return (
-                        <option key={slug} value={slug}>
-                          {p.name ?? slug}
+                        <option key={key} value={key}>
+                          {providerLabel(p)}
                         </option>
                       );
                     })}
@@ -1692,10 +1700,10 @@ export default function TontineDetailPage() {
                   >
                     <option value="">{t("tontines.choose")}</option>
                     {providerList.map((p) => {
-                      const slug = p.slug ?? p.id ?? "";
+                      const key = providerOptionKey(p);
                       return (
-                        <option key={slug} value={slug}>
-                          {p.name ?? slug}
+                        <option key={key} value={key}>
+                          {providerLabel(p)}
                         </option>
                       );
                     })}
@@ -1724,7 +1732,7 @@ export default function TontineDetailPage() {
                         method: "POST",
                         body: JSON.stringify({
                           amount: Number(repayAscaAmount),
-                          provider: disburseProvider,
+                          provider: railSlug(disburseProvider),
                           payerPhone: disbursePhone,
                         }),
                       },

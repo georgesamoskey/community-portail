@@ -138,6 +138,14 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const refreshChat = unreadChat.refresh;
   const badgeTotal = unreadCount + chatUnread;
   const isChat = pathname.startsWith("/app/chat");
+  const seenPath = useRef(pathname);
+
+  useEffect(() => {
+    if (seenPath.current === pathname) return;
+    seenPath.current = pathname;
+    void refreshNotif();
+    void refreshChat();
+  }, [pathname, refreshNotif, refreshChat]);
 
   const PRIMARY_NAV = [
     { href: "/app", label: t("nav.home") },
@@ -294,10 +302,11 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         </div>
         <nav
           className={cx(
-            "mx-auto flex items-center gap-1 overflow-x-auto px-4 pb-3 sm:px-6",
+            "mx-auto flex items-center gap-1 overflow-visible px-4 pb-3 sm:px-6",
             isChat ? "max-w-7xl" : "max-w-6xl",
           )}
         >
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
           {PRIMARY_NAV.map((item) => {
             const active = isActive(item.href);
             return (
@@ -319,8 +328,9 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+          </div>
 
-          <div className="relative" ref={moreRef}>
+          <div className="relative shrink-0" ref={moreRef}>
             <button
               type="button"
               aria-expanded={moreOpen}
@@ -341,7 +351,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
               ) : null}
             </button>
             {moreOpen ? (
-              <div className="absolute left-0 top-full z-50 mt-1.5 min-w-[12rem] overflow-hidden rounded-2xl border border-ink/[0.08] bg-surface py-1 shadow-lift">
+              <div className="absolute left-0 top-full z-[80] mt-1.5 min-w-[12rem] overflow-hidden rounded-2xl border border-ink/[0.08] bg-surface py-1 shadow-lift">
                 {MORE_NAV.map((item) => {
                   const active = isActive(item.href);
                   const locked =

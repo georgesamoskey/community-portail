@@ -1,12 +1,35 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/context";
 import { bffFetch, BffError } from "@/lib/bff-fetch";
 import { useBff } from "@/lib/use-bff";
 import { normalizeList, type NotificationRow } from "@/lib/portal-api";
 import { formatDateTime } from "@/lib/ui";
 import { cx } from "@/lib/cx";
+
+function invitationCodeOf(n: NotificationRow): string | null {
+  const direct = n.data?.invitationCode;
+  if (direct) return direct;
+  const url = n.data?.invitationUrl ?? n.actionUrl ?? "";
+  const match = url.match(/\/invite\/([^/?#]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function isContributionInvite(n: NotificationRow): boolean {
+  return (n.type ?? "").toLowerCase() === "invitation";
+}
+
+function tontineIdOf(n: NotificationRow): string | null {
+  if ((n.type ?? "").toLowerCase() !== "tontine_invited") return null;
+  return n.data?.tontineId ?? null;
+}
+
+function isUnread(n: NotificationRow): boolean {
+  if (n.read === true || n.isRead === true || n.readAt) return false;
+  return true;
+}
 
 export default function NotificationsPage() {
   const { t } = useI18n();
@@ -21,17 +44,84 @@ export default function NotificationsPage() {
     ? list.data
     : normalizeList<NotificationRow>(list.data, ["items", "notifications", "data"]);
 
-  const count = unread.data?.count ?? items.filter((n) => !n.isRead && !n.readAt).length;
+  const count =
+    unread.data?.count ?? items.filter((n) => isUnread(n)).length;
+  const seenInbox = useRef(false);
+
+  const refreshUnread = unread.refresh;
+  useEffect(() => {
+    if (seenInbox.current || list.loading || count === 0) return;
+    seenInbox.current = true;
+    void bffFetch("/notifications/read/all", { method: "PUT" })
+      .then(() => refreshUnread())
+      .catch(() => {
+        seenInbox.current = false;
+      });
+  }, [count, list.loading, refreshUnread]);
 
   const refreshAll = useCallback(async () => {
     await Promise.all([list.refresh(), unread.refresh()]);
   }, [list, unread]);
 
-  const markOne = async (id: string) => {
+  const acceptInvitation = async (n: NotificationRow) => {
     setMutating(true);
     setErr(null);
     try {
-      await bffFetch(`/notifications/${id}/read`, { method: "PUT" });
+      let code = invitationCodeOf(n);
+      if (!code && n.data?.invitationId) {
+        const detail = await bffFetch<{ invitationCode?: string }>(
+          `/invitations/${n.data.invitationId}`,
+        );
+        code = detail.invitationCode ?? null;
+      }
+      if (!code) {
+        const mine = await bffFetch<
+          | { items?: Array<{ id?: string; invitationCode?: string; contributionId?: string }> }
+          | Array<{ id?: string; invitationCode?: string; contributionId?: string }>
+        >("/invitations/my-invitations");
+        const rows = Array.isArray(mine)
+          ? mine
+          : (mine.items ?? []);
+        const match =
+          rows.find((row) => row.id && row.id === n.data?.invitationId) ??
+          rows.find(
+            (row) =>
+              row.contributionId &&
+              row.contributionId === n.data?.contributionId,
+          ) ??
+          (rows.length === 1 ? rows[0] : undefined);
+        code = match?.invitationCode ?? null;
+      }
+      if (!code) {
+        setErr(t("invite.notFound"));
+        return;
+      }
+      const me = await bffFetch<{ id?: string }>("/users/me");
+      if (!me?.id) {
+        setErr(t("invite.needAuth"));
+        return;
+      }
+      await bffFetch(`/invitations/accept/${encodeURIComponent(code)}`, {
+        method: "POST",
+        body: JSON.stringify({ userId: me.id }),
+      });
+      await bffFetch(`/notifications/${n.id}/read`, { method: "PUT" });
+      await refreshAll();
+    } catch (e) {
+      setErr(e instanceof BffError ? e.message : t("notifications.fail"));
+    } finally {
+      setMutating(false);
+    }
+  };
+
+  const acceptTontine = async (tontineId: string, notificationId: string) => {
+    setMutating(true);
+    setErr(null);
+    try {
+      await bffFetch(`/tontines/${tontineId}/members/me/accept`, {
+        method: "POST",
+      });
+      await bffFetch(`/notifications/${notificationId}/read`, { method: "PUT" });
       await refreshAll();
     } catch (e) {
       setErr(e instanceof BffError ? e.message : t("notifications.fail"));
@@ -122,12 +212,15 @@ export default function NotificationsPage() {
       ) : (
         <ul className="divide-y divide-brand-100 overflow-hidden rounded-2xl border border-brand-100 bg-surface/80 shadow-soft">
           {items.map((n) => {
-            const unreadRow = !n.isRead && !n.readAt;
+            const unreadRow = isUnread(n);
+            const invite = isContributionInvite(n);
+            const tontineId = tontineIdOf(n);
+            const code = invitationCodeOf(n);
             return (
               <li
                 key={n.id}
                 className={cx(
-                  "flex flex-wrap items-start justify-between gap-3 px-4 py-3",
+                  "flex flex-col gap-3 px-4 py-3",
                   unreadRow && "bg-brand-50/60",
                 )}
               >
@@ -142,16 +235,42 @@ export default function NotificationsPage() {
                     {n.createdAt ? formatDateTime(n.createdAt) : ""}
                   </p>
                 </div>
-                {unreadRow && (
-                  <button
-                    type="button"
-                    disabled={mutating}
-                    onClick={() => void markOne(n.id)}
-                    className="text-xs font-medium text-brand-700 hover:underline"
-                  >
-                    {t("notifications.markRead")}
-                  </button>
-                )}
+                {invite ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={mutating}
+                      onClick={() => void acceptInvitation(n)}
+                      className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                    >
+                      {t("invite.accept")}
+                    </button>
+                    <Link
+                      href={code ? `/invite/${encodeURIComponent(code)}` : "/app/invitations"}
+                      className="rounded-xl border border-brand-200 px-4 py-2 text-sm font-semibold text-brand-800"
+                    >
+                      {t("invitations.openInvite")}
+                    </Link>
+                  </div>
+                ) : null}
+                {tontineId ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={mutating}
+                      onClick={() => void acceptTontine(tontineId, n.id)}
+                      className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                    >
+                      {t("tontines.acceptInvite")}
+                    </button>
+                    <Link
+                      href={`/app/tontines/${tontineId}`}
+                      className="rounded-xl border border-brand-200 px-4 py-2 text-sm font-semibold text-brand-800"
+                    >
+                      {t("invitations.openInvite")}
+                    </Link>
+                  </div>
+                ) : null}
               </li>
             );
           })}

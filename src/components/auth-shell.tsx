@@ -35,7 +35,7 @@ export function AuthShell({
           </span>
         </Link>
         <div className="rounded-xl bg-white/15 px-1 py-0.5 backdrop-blur">
-          <LocaleSwitcher compact />
+          <LocaleSwitcher compact showCountry={false} />
         </div>
       </header>
       <main className="relative z-10 mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 pb-8 pt-2 sm:px-6">

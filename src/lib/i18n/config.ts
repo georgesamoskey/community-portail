@@ -178,7 +178,11 @@ export function formatMoney(
     return new Intl.NumberFormat(LOCALE_META[locale].bcp47, {
       style: "currency",
       currency,
-      maximumFractionDigits: currency === "BIF" || currency === "RWF" ? 0 : 2,
+      maximumFractionDigits: ["BIF", "RWF", "XOF", "XAF", "KES", "UGX", "TZS", "NGN"].includes(
+        currency,
+      )
+        ? 0
+        : 2,
     }).format(n);
   } catch {
     return `${n.toLocaleString(LOCALE_META[locale].bcp47)} ${currency}`;

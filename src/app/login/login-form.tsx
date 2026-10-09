@@ -15,13 +15,18 @@ import {
 import { useI18n } from "@/lib/i18n/context";
 import { COUNTRY_META, type CountryCode } from "@/lib/i18n/config";
 import { CountrySelect } from "@/components/country-select";
+import { countryFromPhoneInput } from "@/lib/phone-country";
 import { PublicAuthError, requestOtp, resendOtp } from "@/lib/public-auth";
 import { useOtpResendCooldown } from "@/lib/use-otp-resend-cooldown";
 
 function mapSignInError(
   code: string | undefined,
   t: (key: string, vars?: Record<string, string | number>) => string,
+  detail?: string | null,
 ): string {
+  if (detail === "phone_country" || code === "phone_country") {
+    return t("auth.phoneCountry");
+  }
   if (!code) return t("auth.invalidCredentials");
   const c = code.toLowerCase();
   if (c.includes("credentialssignin") || c === "credentials") {
@@ -66,8 +71,12 @@ export function LoginForm() {
     setPassword("");
   };
 
+  const accountCountry = countryFromPhoneInput(phone) ?? country;
+
   const onPhoneChange = (value: string) => {
     setPhone(value);
+    const inferred = countryFromPhoneInput(value);
+    if (inferred && inferred !== country) setCountry(inferred);
     if (mode === "otp" && otpSent) {
       setOtpSent(false);
       setOtpRequestId("");
@@ -87,8 +96,8 @@ export function LoginForm() {
     setDevHint(null);
     try {
       const res = otpRequestId
-        ? await resendOtp(phone.trim(), otpRequestId, country)
-        : await requestOtp(phone.trim(), country);
+        ? await resendOtp(phone.trim(), otpRequestId, accountCountry)
+        : await requestOtp(phone.trim(), accountCountry);
       setOtpRequestId(res.requestId);
       setOtpSent(true);
       arm(res.resendAfter);
@@ -121,21 +130,27 @@ export function LoginForm() {
               phone: phone.trim(),
               code: otpCode,
               requestId: otpRequestId,
-              country,
+              country: accountCountry,
               redirect: false,
               callbackUrl,
             })
           : await signIn("password", {
               phone: phone.trim(),
               password,
-              country,
+              country: accountCountry,
               redirect: false,
               callbackUrl,
             });
       if (res?.error) {
-        setError(mapSignInError(res.error, t));
+        setError(mapSignInError(res.error, t, res.code));
         return;
       }
+      await fetch("/api/eagaseke/users/profile", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile: { country: accountCountry } }),
+      }).catch(() => undefined);
       window.location.href = callbackUrl;
     } catch {
       setError(t("common.error"));
@@ -192,7 +207,12 @@ export function LoginForm() {
           role="alert"
           className="mb-4 rounded-xl bg-brand-50 px-3 py-2.5 text-sm text-brand-900"
         >
-          {error ?? mapSignInError(params.get("error") ?? undefined, t)}
+          {error ??
+            mapSignInError(
+              params.get("error") ?? undefined,
+              t,
+              params.get("code"),
+            )}
         </p>
       )}
 

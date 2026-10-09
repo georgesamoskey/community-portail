@@ -66,7 +66,7 @@ export async function listPending(): Promise<PendingSyncItem[]> {
 
 export async function countPending(): Promise<number> {
   const rows = await listPending();
-  return rows.filter((r) => r.status !== "failed" || r.attempts < 10).length;
+  return rows.filter((r) => r.status === "pending" || r.status === "syncing").length;
 }
 
 export async function deletePending(id: string): Promise<void> {

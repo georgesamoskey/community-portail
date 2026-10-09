@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { flushChatOutbox } from "@/lib/flush-chat-outbox";
 import {
   enqueueCotisation,
   flushPendingSync,
@@ -62,7 +63,8 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
     flushing.current = true;
     setSyncing(true);
     try {
-      await flushPendingSync();
+      await flushPendingSync({ includeFailed: true });
+      await flushChatOutbox();
       await refresh();
     } finally {
       setSyncing(false);

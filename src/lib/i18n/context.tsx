@@ -16,6 +16,7 @@ import {
   type CountryCode,
   type Locale,
   formatMoney,
+  isCountry,
   normalizeCountry,
   normalizeLocale,
 } from "./config";
@@ -113,7 +114,12 @@ export function I18nProvider({
         const me = (await res.json()) as {
           profile?: { preferredLanguage?: string; country?: string };
         };
-        const c = normalizeCountry(me.profile?.country);
+        const cookieCountry = normalizeCountry(readCookie(COUNTRY_COOKIE));
+        const profileCountry = normalizeCountry(me.profile?.country);
+        const c =
+          readCookie(COUNTRY_COOKIE) && isCountry(cookieCountry)
+            ? cookieCountry
+            : profileCountry;
         const loc = normalizeLocale(me.profile?.preferredLanguage, c);
         if (cancelled) return;
         setCountryState(c);

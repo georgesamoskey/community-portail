@@ -15,9 +15,9 @@ import {
 } from "@/components/native-plus";
 import { PinLockSettings } from "@/components/native-pro";
 import { pushToast } from "@/components/native-ux";
+import { captureMyPlace } from "@/lib/save-my-place";
 import {
   celebrate,
-  getGeoOnce,
   lockPortrait,
   pickContacts,
   registerBackgroundSync,
@@ -71,9 +71,9 @@ export default function NativeLabPage() {
           onClick={() => {
             void (async () => {
               setBusy("geo");
-              const g = await getGeoOnce();
+              const place = await captureMyPlace();
               setBusy(null);
-              if (!g) {
+              if (!place?.city) {
                 pushToast(t("native.geoDenied"), "warn");
                 return;
               }

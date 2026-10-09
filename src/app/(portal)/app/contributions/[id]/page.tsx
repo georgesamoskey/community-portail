@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useBff } from "@/lib/use-bff";
 import { useAction } from "@/lib/use-action";
@@ -31,6 +31,9 @@ import { MemberTrustBadge } from "@/components/member-trust-badge";
 import { useTrustBatch } from "@/lib/use-trust-batch";
 import { markPushMoment } from "@/components/push-prompt";
 import { memberDisplayName } from "@/lib/member-display";
+import { MmPayFields } from "@/components/mm-pay-fields";
+import { displayCurrency, railSlug } from "@/lib/mm-market";
+import { useMarketCountry } from "@/lib/use-market-country";
 
 type Contribution = {
   id?: string;
@@ -39,7 +42,10 @@ type Contribution = {
   status?: string;
   financialGoal?: number;
   currency?: string;
+  country?: string;
   isPublic?: boolean;
+  deadline?: string;
+  settings?: { allOrNothing?: boolean };
   chatRoomId?: string | null;
   createdBy?: string;
   creatorId?: string;
@@ -109,9 +115,7 @@ function ContributionDetailInner() {
   const balance = useBff<{ available?: number; balance?: number; currency?: string }>(
     id ? `/contributions/${id}/payouts/balance` : null,
   );
-  const providers = useBff<unknown>(
-    canPay ? "/mobile-money/providers?capability=collection" : null,
-  );
+  const payMarket = useMarketCountry(detail.data?.country);
 
   const c = detail.data;
   const cotList = normalizeList<Cotisation>(cotisations.data, [
@@ -124,15 +128,6 @@ function ContributionDetailInner() {
     "payouts",
     "data",
   ]);
-  const providerList = useMemo(
-    () =>
-      normalizeList<{ slug?: string; id?: string; name?: string }>(
-        providers.data,
-        ["items", "providers", "data"],
-      ),
-    [providers.data],
-  );
-
   const [montant, setMontant] = useState("5000");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [notes, setNotes] = useState("");
@@ -194,12 +189,6 @@ function ContributionDetailInner() {
   useEffect(() => {
     setMmAmount(montant);
   }, [montant]);
-
-  useEffect(() => {
-    if (mmProvider || !providerList.length) return;
-    const slug = providerList[0]?.slug ?? providerList[0]?.id ?? "";
-    if (slug) setMmProvider(slug);
-  }, [providerList, mmProvider]);
 
   useEffect(() => {
     if (mmPhone) return;
@@ -288,7 +277,7 @@ function ContributionDetailInner() {
         paymentMethod: "mobile_money",
         notes: notes || undefined,
         mobileMoney: {
-          provider: mmProvider,
+          provider: railSlug(mmProvider),
           payerPhone: mmPhone,
           amount: Number(mmAmount),
         },
@@ -304,7 +293,7 @@ function ContributionDetailInner() {
           body: JSON.stringify({
             payerUserId: uid,
             amount: Number(mmAmount),
-            provider: mmProvider,
+            provider: railSlug(mmProvider),
             payerPhone: mmPhone,
             notes: notes || undefined,
           }),
@@ -605,7 +594,7 @@ function ContributionDetailInner() {
   const requestPayout = () => {
     const destination =
       payoutMethod === "mobile_money"
-        ? { provider: payoutProvider, phone: payoutPhone }
+        ? { provider: railSlug(payoutProvider), phone: payoutPhone }
         : payoutMethod === "cash"
           ? { handlerName: "Cash", notes: "Remise" }
           : {
@@ -622,7 +611,7 @@ function ContributionDetailInner() {
           method: payoutMethod,
           destination,
           reason: effectivePayoutReason,
-          currency: c?.currency ?? "BIF",
+          currency: displayCurrency(c?.currency, c?.country),
         }),
       },
       { success: t("pots.okPayoutReq"), onDone: reload },
@@ -702,15 +691,18 @@ function ContributionDetailInner() {
               <Badge tone={statusTone(c.status)}>{c.status}</Badge>
             ) : null}
             <Badge>
-              {t("pots.goalBadge", { amount: money(c.financialGoal, c.currency ?? "BIF") })}
+              {t("pots.goalBadge", { amount: money(c.financialGoal, displayCurrency(c.currency, c.country)) })}
             </Badge>
             {c.isPublic ? <Badge tone="info">{t("common.public")}</Badge> : null}
+            {c.settings?.allOrNothing ? (
+              <Badge tone="warn">{t("pots.allOrNothingBadge")}</Badge>
+            ) : null}
             {balance.data && (
               <Badge tone="ok">
                 {t("pots.balance", {
                   amount: money(
                     balance.data.available ?? balance.data.balance,
-                    balance.data.currency ?? c.currency ?? "BIF",
+                    balance.data.currency ?? displayCurrency(c.currency, c.country),
                   ),
                 })}
               </Badge>
@@ -839,6 +831,10 @@ function ContributionDetailInner() {
           )}
 
           {tab === "pay" && (
+            <>
+            {c.settings?.allOrNothing ? (
+              <Alert tone="teal">{t("pots.allOrNothingPay")}</Alert>
+            ) : null}
             <div className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-2">
             <Panel title={t("pots.declare")}>
@@ -906,43 +902,30 @@ function ContributionDetailInner() {
                 <div className="grid gap-3">
                   <p className="text-xs text-ink-mute">{t("pots.payMmHint")}</p>
                   <Field label={t("common.amount")}>
-                    <input
-                      className={inputClass}
-                      type="number"
-                      value={mmAmount}
-                      onChange={(e) => {
-                        setMmAmount(e.target.value);
-                        setMontant(e.target.value);
-                      }}
-                    />
+                    <div className="relative">
+                      <input
+                        className={`${inputClass} pr-16`}
+                        type="number"
+                        value={mmAmount}
+                        onChange={(e) => {
+                          setMmAmount(e.target.value);
+                          setMontant(e.target.value);
+                        }}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-bold text-ink-mute">
+                        {displayCurrency(c.currency, c.country)}
+                      </span>
+                    </div>
                   </Field>
-                  <Field label={t("tontines.provider")}>
-                    <select
-                      className={inputClass}
-                      value={mmProvider}
-                      onChange={(e) => setMmProvider(e.target.value)}
-                    >
-                      <option value="">{t("tontines.choose")}</option>
-                      {providerList.map((p) => {
-                        const slug = p.slug ?? p.id ?? "";
-                        return (
-                          <option key={slug} value={slug}>
-                            {p.name ?? slug}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </Field>
-                  <Field label={t("tontines.phoneE164")}>
-                    <input
-                      className={inputClass}
-                      value={mmPhone}
-                      onChange={(e) => setMmPhone(e.target.value)}
-                      placeholder="+257…"
-                      inputMode="tel"
-                      autoComplete="tel"
-                    />
-                  </Field>
+                  <MmPayFields
+                    country={payMarket.country || c.country || ""}
+                    currency={displayCurrency(c.currency, c.country)}
+                    capability="collection"
+                    provider={mmProvider}
+                    onProvider={setMmProvider}
+                    phone={mmPhone}
+                    onPhone={setMmPhone}
+                  />
                   <Btn
                     disabled={
                       action.busy || !mmProvider || !mmPhone || !mmAmount
@@ -977,6 +960,7 @@ function ContributionDetailInner() {
             </Panel>
           </div>
             </div>
+          </>
           )}
 
           {tab === "money" && (
@@ -1007,7 +991,7 @@ function ContributionDetailInner() {
                   >
                     <div>
                       <p className="font-medium text-brand-900">
-                        {money(cot.montant ?? cot.amount, c.currency ?? "BIF")}
+                        {money(cot.montant ?? cot.amount, displayCurrency(c.currency, c.country))}
                       </p>
                       <p className="text-xs text-brand-600">
                         {cot.paymentMethod ?? "—"} · {cot.createdAt ?? ""}
@@ -1065,6 +1049,9 @@ function ContributionDetailInner() {
           </Panel>
 
             <Panel title={t("pots.requestPayout")}>
+              {c.status !== "closed" && c.status !== "archived" ? (
+                <p className="mb-3 text-sm text-brand-800">{t("pots.payoutLocked")}</p>
+              ) : null}
               <div className="grid gap-3">
                 <Field label={t("pots.gross")}>
                   <input
@@ -1087,20 +1074,15 @@ function ContributionDetailInner() {
                 </Field>
                 {payoutMethod === "mobile_money" && (
                   <>
-                    <Field label={t("tontines.provider")}>
-                      <input
-                        className={inputClass}
-                        value={payoutProvider}
-                        onChange={(e) => setPayoutProvider(e.target.value)}
-                      />
-                    </Field>
-                    <Field label={t("common.phone")}>
-                      <input
-                        className={inputClass}
-                        value={payoutPhone}
-                        onChange={(e) => setPayoutPhone(e.target.value)}
-                      />
-                    </Field>
+                    <MmPayFields
+                      country={payMarket.country || c.country || ""}
+                      currency={displayCurrency(c.currency, c.country)}
+                      capability="disbursement"
+                      provider={payoutProvider}
+                      onProvider={setPayoutProvider}
+                      phone={payoutPhone}
+                      onPhone={setPayoutPhone}
+                    />
                   </>
                 )}
                 <Field label={t("pots.reason")}>
@@ -1113,6 +1095,7 @@ function ContributionDetailInner() {
                 <Btn
                   disabled={
                     action.busy ||
+                    (c.status !== "closed" && c.status !== "archived") ||
                     Number(payoutAmount) <= 0 ||
                     effectivePayoutReason.trim().length < 5
                   }

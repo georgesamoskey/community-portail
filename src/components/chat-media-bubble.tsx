@@ -1,32 +1,97 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   cacheChatMedia,
   getCachedChatMediaBlob,
   getCachedChatMediaUrl,
 } from "@/lib/chat-cache";
 import { bffFetch } from "@/lib/bff-fetch";
+import { useI18n } from "@/lib/i18n/context";
+import { cx } from "@/lib/cx";
+
+type Media = {
+  url?: string | null;
+  fileName?: string | null;
+  mimeType?: string | null;
+  size?: number | null;
+  purged?: boolean;
+};
 
 type Props = {
   roomId: string;
   messageId: string;
-  media: {
-    url?: string | null;
-    fileName?: string | null;
-    mimeType?: string | null;
-    size?: number | null;
-    purged?: boolean;
-  };
+  media: Media;
   mine?: boolean;
-  /** Après restore-media réussi (mettre à jour l’historique parent). */
   onRestored?: (message: unknown) => void;
 };
 
+function clock(sec: number): string {
+  const s = Math.max(0, Math.floor(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function VoiceNote({ src, mine }: { src: string; mine?: boolean }) {
+  const { t } = useI18n();
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [dur, setDur] = useState(0);
+
+  return (
+    <div
+      className={cx(
+        "flex w-[min(100%,240px)] items-center gap-2 rounded-full px-1.5 py-1",
+        mine ? "bg-black/10" : "bg-brand-50",
+      )}
+    >
+      <button
+        type="button"
+        className={cx(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white",
+          mine ? "bg-[#00a884]" : "bg-brand-600",
+        )}
+        aria-label={playing ? t("chat.pause") : t("chat.play")}
+        onClick={() => {
+          const el = audioRef.current;
+          if (!el) return;
+          if (playing) el.pause();
+          else void el.play();
+        }}
+      >
+        {playing ? "❚❚" : "▶"}
+      </button>
+      <div className="min-w-0 flex-1">
+        <div className="h-1 overflow-hidden rounded-full bg-black/10">
+          <div
+            className={cx("h-full rounded-full", mine ? "bg-[#00a884]" : "bg-brand-500")}
+            style={{ width: `${dur ? (progress / dur) * 100 : 0}%` }}
+          />
+        </div>
+        <p className={cx("mt-1 text-[11px] tabular-nums", mine ? "text-[#667781]" : "text-ink-mute")}>
+          {clock(playing ? progress : dur)}
+        </p>
+      </div>
+      <audio
+        ref={audioRef}
+        src={src}
+        preload="metadata"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false);
+          setProgress(0);
+        }}
+        onLoadedMetadata={(e) => setDur(e.currentTarget.duration || 0)}
+        onTimeUpdate={(e) => setProgress(e.currentTarget.currentTime)}
+      />
+    </div>
+  );
+}
+
 /**
- * Affiche une PJ : cache local Afri-Mesh d’abord, sinon hub,
- * sinon message si purged + bouton « demander aux membres ».
- * Si cache local + purged → re-upload réel (restore-media).
+ * Affiche une PJ : cache local d’abord, sinon le hub.
  */
 export function ChatMediaBubble({
   roomId,
@@ -35,12 +100,17 @@ export function ChatMediaBubble({
   mine,
   onRestored,
 }: Props) {
+  const { t } = useI18n();
   const [src, setSrc] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState(false);
   const [asked, setAsked] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [restored, setRestored] = useState(false);
-  const isImage = (media.mimeType || "").startsWith("image/");
+  const mime = media.mimeType || "";
+  const isImage = mime.startsWith("image/");
+  const isAudio = mime.startsWith("audio/");
+  const isVideo = mime.startsWith("video/");
 
   useEffect(() => {
     let revoked: string | null = null;
@@ -96,11 +166,7 @@ export function ChatMediaBubble({
       const blob = await getCachedChatMediaBlob(roomId, messageId);
       if (!blob) return;
       const fd = new FormData();
-      fd.append(
-        "file",
-        blob,
-        media.fileName || "fichier",
-      );
+      fd.append("file", blob, media.fileName || "fichier");
       const updated = await bffFetch(`/chat/messages/${messageId}/restore-media`, {
         method: "POST",
         body: fd,
@@ -115,70 +181,92 @@ export function ChatMediaBubble({
   };
 
   const btnClass = mine
-    ? "bg-white/20 text-white hover:bg-white/30"
+    ? "bg-black/10 text-ink hover:bg-black/15"
     : "bg-brand-50 text-brand-800 hover:bg-brand-100";
 
   if (media.purged && !src && !restored) {
     return (
-      <div className={`mb-1 space-y-1 text-[11px] ${mine ? "text-white/80" : "text-ink-mute"}`}>
-        <p>
-          Fichier retiré du serveur (30 j) — encore possible sur les téléphones
-          des membres qui l’ont ouvert.
-        </p>
+      <div className="mb-1.5 space-y-1.5 text-[12px] leading-snug text-ink-mute">
+        <p>{t("chat.mediaGone")}</p>
         <button
           type="button"
           disabled={asking || asked}
           onClick={() => void requestReshare()}
-          className={`rounded-lg px-2 py-1 text-[10px] font-bold ${btnClass} disabled:opacity-60`}
+          className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${btnClass} disabled:opacity-60`}
         >
-          {asked ? "Demande envoyée" : asking ? "…" : "Demander aux membres"}
+          {asked ? t("chat.asked") : asking ? "…" : t("chat.askMembers")}
         </button>
       </div>
     );
   }
 
   return (
-    <div className="mb-1 space-y-1">
+    <div className="mb-1.5 space-y-1.5">
       {isImage && src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <button type="button" className="block" onClick={() => setOpen(true)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt={media.fileName || t("chat.image")}
+            className="max-h-72 w-[min(100%,260px)] rounded-lg object-cover"
+          />
+        </button>
+      ) : null}
+      {isAudio && src ? <VoiceNote src={src} mine={mine} /> : null}
+      {isVideo && src ? (
+        <video
           src={src}
-          alt={media.fileName || "Image"}
-          className="max-h-56 w-full rounded-xl object-cover"
+          controls
+          playsInline
+          preload="metadata"
+          className="max-h-72 w-[min(100%,260px)] rounded-lg bg-black"
+          aria-label={media.fileName || t("chat.video")}
         />
-      ) : src ? (
+      ) : null}
+      {!isImage && !isAudio && !isVideo && src ? (
         <a
           href={src}
-          download={media.fileName || "fichier"}
-          className={`inline-flex items-center gap-2 rounded-xl px-2 py-1.5 text-xs font-semibold ${
-            mine
-              ? "bg-white/15 text-white hover:bg-white/25"
-              : "bg-brand-50 text-brand-800 hover:bg-brand-100"
-          }`}
+          download={media.fileName || t("chat.file")}
+          className={`inline-flex max-w-full items-center gap-2 rounded-xl px-2.5 py-2 text-[13px] font-semibold ${btnClass}`}
         >
-          📎 {media.fileName || "Fichier"}
+          <span aria-hidden>📄</span>
+          <span className="truncate">{media.fileName || t("chat.file")}</span>
         </a>
       ) : null}
-
       {media.purged && src && !restored ? (
-        <div className={`space-y-1 text-[11px] ${mine ? "text-white/80" : "text-ink-mute"}`}>
-          <p>Copie locale — le hub n’a plus ce fichier.</p>
+        <div className="space-y-1 text-[12px] leading-snug text-ink-mute">
+          <p>{t("chat.localCopy")}</p>
           <button
             type="button"
             disabled={restoring}
             onClick={() => void restoreToHub()}
-            className={`rounded-lg px-2 py-1 text-[10px] font-bold ${btnClass} disabled:opacity-60`}
+            className={`rounded-lg px-2.5 py-1 text-[11px] font-bold ${btnClass} disabled:opacity-60`}
           >
-            {restoring ? "Envoi…" : "Remettre sur le serveur"}
+            {restoring ? t("chat.restoring") : t("chat.restore")}
           </button>
         </div>
       ) : null}
-
       {restored ? (
-        <p className={`text-[10px] font-semibold ${mine ? "text-white/90" : "text-brand-700"}`}>
-          Remis sur le serveur
-        </p>
+        <p className="text-[11px] font-semibold text-brand-700">{t("chat.restored")}</p>
       ) : null}
+      {open && src
+        ? createPortal(
+            <button
+              type="button"
+              className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4"
+              onClick={() => setOpen(false)}
+              aria-label={t("common.close")}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src}
+                alt={media.fileName || t("chat.image")}
+                className="max-h-[90dvh] max-w-full rounded-lg object-contain"
+              />
+            </button>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

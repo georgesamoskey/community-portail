@@ -422,11 +422,118 @@ html.dark .akiba-app-shell nav[aria-label] {
 }
 
 .chat-thread-bg {
-  background-color: var(--chat-bg);
+  background-color: #e7ddd4;
   background-image:
-    radial-gradient(circle at 20% 20%, var(--glow-brand), transparent 40%),
-    radial-gradient(circle at 80% 80%, var(--glow-teal), transparent 42%),
-    linear-gradient(180deg, var(--chat-bg-top) 0%, var(--chat-bg) 100%);
+    radial-gradient(circle at 12px 12px, rgb(0 0 0 / 0.035) 1.2px, transparent 1.4px),
+    radial-gradient(circle at 28px 4px, rgb(0 0 0 / 0.03) 1px, transparent 1.2px),
+    linear-gradient(180deg, #efe6dc 0%, #e4d8cc 100%);
+  background-size: 36px 36px, 36px 36px, auto;
+}
+
+html.dark .chat-thread-bg {
+  background-color: #0b141a;
+  background-image:
+    radial-gradient(circle at 12px 12px, rgb(255 255 255 / 0.04) 1.2px, transparent 1.4px),
+    linear-gradient(180deg, #111b21 0%, #0b141a 100%);
+}
+
+.chat-bubble {
+  box-shadow: 0 1px 0.5px rgb(0 0 0 / 0.13);
+}
+
+.chat-bubble-in {
+  border-radius: 0 12px 12px 12px;
+  background: var(--surface, #fff);
+  color: var(--ink, #111);
+}
+
+.chat-bubble-in-cont {
+  border-radius: 12px;
+}
+
+.chat-bubble-out {
+  border-radius: 12px 0 12px 12px;
+  background: #d9fdd3;
+  color: #111b21;
+}
+
+html.dark .chat-bubble-out {
+  background: #005c4b;
+  color: #e9edef;
+}
+
+.chat-bubble-out-cont {
+  border-radius: 12px;
+}
+
+.chat-link {
+  font-weight: 650;
+  color: #027eb5;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.chat-bubble-out .chat-link {
+  color: #075e54;
+}
+
+html.dark .chat-bubble-out .chat-link {
+  color: #9be7ff;
+}
+
+.chat-mention {
+  font-weight: 700;
+  color: #027eb5;
+  background: rgb(2 126 181 / 0.12);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+
+.chat-bubble-out .chat-mention {
+  color: #075e54;
+  background: rgb(255 255 255 / 0.55);
+}
+
+html.dark .chat-bubble-out .chat-mention {
+  color: #9be7ff;
+  background: rgb(255 255 255 / 0.14);
+}
+
+.chat-bubble-out .chat-meta {
+  color: #667781;
+}
+
+html.dark .chat-bubble-out .chat-meta {
+  color: rgb(255 255 255 / 0.72);
+}
+
+.chat-tick {
+  font-size: 11px;
+  letter-spacing: -0.12em;
+}
+
+.chat-tick-read {
+  color: #53bdeb;
+}
+
+html.dark .chat-bubble-out .chat-tick-read {
+  color: #53bdeb;
+}
+
+.chat-list-row {
+  border-bottom: 1px solid rgb(0 0 0 / 0.04);
+}
+
+.chat-unread-pill {
+  min-width: 1.25rem;
+  border-radius: 999px;
+  background: #25d366;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25rem;
+  text-align: center;
+  padding: 0 5px;
 }
 
 .online-dot {

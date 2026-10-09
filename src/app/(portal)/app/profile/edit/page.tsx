@@ -6,6 +6,7 @@ import { useI18n } from "@/lib/i18n/context";
 import { bffFetch, BffError } from "@/lib/bff-fetch";
 import { useAction } from "@/lib/use-action";
 import { useBff } from "@/lib/use-bff";
+import { captureMyPlace } from "@/lib/save-my-place";
 import {
   Alert,
   Btn,
@@ -51,6 +52,7 @@ export default function ProfilePage() {
   const [email, setEmail] = useState("");
   const [bio, setBio] = useState("");
   const [location, setLocation] = useState("");
+  const [geoCountry, setGeoCountry] = useState<string | null>(null);
   const [phoneCode, setPhoneCode] = useState("");
   const [channels, setChannels] = useState<NotifChannels>({
     email: true,
@@ -120,6 +122,15 @@ export default function ProfilePage() {
     void loadProfile();
   }, []);
 
+  const fillFromHere = () =>
+    void action.run(async () => {
+      const place = await captureMyPlace();
+      if (!place?.city) throw new Error(t("native.geoDenied"));
+      setLocation(place.city);
+      if (place.country) setGeoCountry(place.country);
+      return place.city;
+    }, { success: t("native.geoOk") });
+
   const saveProfile = () =>
     void action.mutate(
       "/users/profile",
@@ -132,6 +143,7 @@ export default function ProfilePage() {
           profile: {
             bio: bio || undefined,
             location: location || undefined,
+            country: geoCountry || undefined,
           },
         }),
       },
@@ -289,6 +301,10 @@ export default function ProfilePage() {
                 onChange={(e) => setLocation(e.target.value)}
               />
             </Field>
+            <p className="text-xs text-ink-mute sm:col-span-2">{t("profile.locationHint")}</p>
+            <Btn type="button" variant="secondary" disabled={action.busy} onClick={fillFromHere}>
+              {t("profile.useMyLocation")}
+            </Btn>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <Btn disabled={action.busy} onClick={saveProfile}>

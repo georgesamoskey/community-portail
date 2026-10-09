@@ -5,6 +5,7 @@ import { useBff } from "@/lib/use-bff";
 import { normalizeList } from "@/lib/portal-api";
 import { useI18n } from "@/lib/i18n/context";
 import { Badge, EmptyState, money, Panel, statusTone } from "@/lib/ui";
+import { displayCurrency } from "@/lib/mm-market";
 import { LocalDataHint } from "@/components/offline-ui";
 
 type Row = {
@@ -16,6 +17,7 @@ type Row = {
   title?: string;
   contributionId?: string;
   currency?: string;
+  country?: string;
 };
 
 /** Liste « mes cotisations » — partagée Historique + onglet cagnottes. */
@@ -74,7 +76,7 @@ export function ContributionsHistory() {
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <span className="text-sm font-bold text-ink">
-                      {money(amount, row.currency ?? "BIF")}
+                      {money(amount, displayCurrency(row.currency, row.country))}
                     </span>
                     {row.status ? (
                       <Badge tone={statusTone(row.status)}>{row.status}</Badge>

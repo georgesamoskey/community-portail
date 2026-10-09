@@ -21,6 +21,9 @@ import { normalizeList } from "@/lib/portal-api";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { countryLabel } from "@/lib/country-flag";
+import { displayCurrency, marketCurrencies } from "@/lib/mm-market";
+import { useMarketCountry } from "@/lib/use-market-country";
 
 type Row = {
   id?: string;
@@ -32,10 +35,16 @@ type Row = {
   title?: string;
   contributionId?: string;
   currency?: string;
+  country?: string;
   financialGoal?: number;
 };
 
 type Tab = "cotisations" | "cagnottes" | "public";
+
+function endOfLocalDay(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return new Date(year, month - 1, day, 23, 59, 59).toISOString();
+}
 
 function flattenMyContributions(data: unknown): Row[] {
   if (!data || typeof data !== "object") return [];
@@ -58,6 +67,14 @@ export default function ContributionsPage() {
   const [description, setDescription] = useState("");
   const [goal, setGoal] = useState("100000");
   const [isPublic, setIsPublic] = useState(false);
+  const [allOrNothing, setAllOrNothing] = useState(false);
+  const [deadline, setDeadline] = useState("");
+  const market = useMarketCountry();
+  const currencies = marketCurrencies(market.country);
+  const [currency, setCurrency] = useState("");
+  useEffect(() => {
+    setCurrency((cur) => (currencies.includes(cur) ? cur : currencies[0] ?? ""));
+  }, [market.country]);
 
   const cotisations = useBff<unknown>("/cotisations/my-cotisations?limit=50");
   const cagnottes = useBff<unknown>("/contributions/my-contributions");
@@ -94,9 +111,11 @@ export default function ContributionsPage() {
           title: title.trim(),
           description: description.trim() || title.trim(),
           financialGoal: Number(goal) || undefined,
-          currency: "BIF",
-          country: "BI",
+          currency: currency || currencies[0],
+          country: market.country || undefined,
           isPublic,
+          deadline: deadline ? endOfLocalDay(deadline) : undefined,
+          settings: allOrNothing ? { allOrNothing: true } : undefined,
         }),
       },
       {
@@ -153,14 +172,37 @@ export default function ContributionsPage() {
                 onChange={(e) => setTitle(e.target.value)}
               />
             </Field>
-            <Field label={t("pots.goal")}>
-              <input
+            <Field label={t("common.country")}>
+              <p className="text-sm font-semibold text-ink">
+                {market.country ? countryLabel(market.country, { withDial: true }) : ""}
+              </p>
+            </Field>
+            <Field label={t("payments.currency")}>
+              <select
                 className={inputClass}
-                type="number"
-                min={100}
-                value={goal}
-                onChange={(e) => setGoal(e.target.value)}
-              />
+                value={currency || currencies[0] || ""}
+                onChange={(e) => setCurrency(e.target.value)}
+              >
+                {currencies.map((cur) => (
+                  <option key={cur} value={cur}>
+                    {cur}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label={t("pots.goal")}>
+              <div className="relative">
+                <input
+                  className={`${inputClass} pr-16`}
+                  type="number"
+                  min={100}
+                  value={goal}
+                  onChange={(e) => setGoal(e.target.value)}
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-bold text-ink-mute">
+                  {currency || currencies[0]}
+                </span>
+              </div>
             </Field>
             <div className="sm:col-span-2">
               <Field label={t("common.description")}>
@@ -180,9 +222,35 @@ export default function ContributionsPage() {
               />
               {t("pots.publicPot")}
             </label>
+            <label className="flex items-center gap-2 text-sm text-brand-800 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={allOrNothing}
+                onChange={(e) => setAllOrNothing(e.target.checked)}
+              />
+              {t("pots.allOrNothing")}
+            </label>
+            {allOrNothing ? (
+              <p className="text-sm text-brand-700 sm:col-span-2">
+                {t("pots.allOrNothingHint")}
+              </p>
+            ) : null}
+            <Field label={t("pots.deadline")}>
+              <input
+                className={inputClass}
+                type="date"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+                required={allOrNothing}
+                aria-required={allOrNothing}
+              />
+            </Field>
           </div>
           <div className="mt-4 flex gap-2">
-            <Btn disabled={action.busy || !title.trim()} onClick={create}>
+            <Btn
+              disabled={action.busy || !title.trim() || (allOrNothing && !deadline)}
+              onClick={create}
+            >
               {action.busy ? t("pots.creating") : t("pots.create")}
             </Btn>
             <Btn variant="ghost" onClick={() => setShowCreate(false)}>
@@ -254,7 +322,7 @@ export default function ContributionsPage() {
                       <p className="font-display text-lg font-semibold text-brand-800">
                         {money(
                           c.amount ?? c.montant ?? c.financialGoal,
-                          c.currency ?? "BIF",
+                          displayCurrency(c.currency, c.country),
                         )}
                       </p>
                     </div>

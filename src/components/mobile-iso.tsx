@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { cx } from "@/lib/cx";
 import { Badge, money, statusTone } from "@/lib/ui";
+import { displayCurrency } from "@/lib/mm-market";
 import { haptic } from "@/lib/native";
 
 /** Header gradient coins arrondis — ISO HomeHeader / ProfileSummary Android. */
@@ -48,6 +49,7 @@ export type ContributionLike = {
   targetAmount?: number;
   goalAmount?: number;
   currency?: string;
+  country?: string;
 };
 
 /** Carte cagnotte — densite ModernContributionCard Android. */
@@ -75,8 +77,10 @@ export function ContributionCard({
         <div className="min-w-0">
           <p className="truncate font-semibold text-ink">{label}</p>
           <p className="mt-0.5 text-xs text-ink-mute">
-            {money(current, item.currency ?? "BIF")}
-            {target > 0 ? ` / ${money(target, item.currency ?? "BIF")}` : ""}
+            {money(current, displayCurrency(item.currency, item.country))}
+            {target > 0
+              ? ` / ${money(target, displayCurrency(item.currency, item.country))}`
+              : ""}
           </p>
         </div>
         {item.status ? (

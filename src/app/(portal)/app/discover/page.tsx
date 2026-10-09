@@ -11,6 +11,7 @@ import {
   type NetworkInvitee,
 } from "@/components/network-invitee-row";
 import { CountryBadge } from "@/components/country-select";
+import { displayCurrency } from "@/lib/mm-market";
 import { Alert, Badge, EmptyState, money, PageHeader } from "@/lib/ui";
 import { useTrustBatch } from "@/lib/use-trust-batch";
 
@@ -234,7 +235,7 @@ export default function DiscoverPage() {
                 {c.financialGoal != null && (
                   <p className="mt-1 text-sm text-ink-mute">
                     {t("discover.goal", {
-                      amount: money(c.financialGoal, c.currency ?? "BIF"),
+                      amount: money(c.financialGoal, displayCurrency(c.currency, c.country)),
                     })}
                   </p>
                 )}

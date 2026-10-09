@@ -85,13 +85,12 @@ export function VoiceRecordButton({
       aria-label={label}
       onClick={() => (recording ? stop() : void start())}
       className={cx(
-        "inline-flex h-[46px] w-[46px] items-center justify-center rounded-2xl border text-sm font-bold transition",
-        recording
-          ? "border-rose-300 bg-rose-500 text-white animate-pulse"
-          : "border-ink/[0.08] text-ink-soft hover:bg-brand-50",
+        "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white transition",
+        recording ? "animate-pulse bg-rose-500" : "bg-[#00a884]",
+        disabled && "opacity-40",
       )}
     >
-      {recording ? `${secs}s` : "🎙"}
+      {recording ? `${secs}` : "🎤"}
     </button>
   );
 }

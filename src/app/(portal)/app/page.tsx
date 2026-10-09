@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import { bffFetch } from "@/lib/bff-fetch";
 import { useBff } from "@/lib/use-bff";
 import {
   initialsFrom,
@@ -115,11 +116,36 @@ export default function PortalHomePage() {
     return sortRoomsByActivity(list).slice(0, 3);
   }, [roomsBff.data]);
 
-  const inviteCount = useMemo(
-    () =>
-      normalizeList(invitations.data, ["items", "invitations", "data"]).length,
-    [invitations.data],
-  );
+  const pendingInvites = useMemo(() => {
+    return normalizeList<{
+      id?: string;
+      status?: string;
+      invitationCode?: string;
+      token?: string;
+      contribution?: { title?: string };
+      message?: string;
+    }>(invitations.data, ["items", "invitations", "data"]).filter((inv) => {
+      const status = (inv.status ?? "pending").toLowerCase();
+      return status === "pending" && Boolean(inv.invitationCode || inv.token);
+    });
+  }, [invitations.data]);
+  const inviteCount = pendingInvites.length;
+  const [accepting, setAccepting] = useState<string | null>(null);
+
+  const acceptInvite = async (code: string) => {
+    setAccepting(code);
+    try {
+      const me = await bffFetch<{ id?: string }>("/users/me");
+      if (!me?.id) return;
+      await bffFetch(`/invitations/accept/${encodeURIComponent(code)}`, {
+        method: "POST",
+        body: JSON.stringify({ userId: me.id }),
+      });
+      await invitations.refresh();
+    } finally {
+      setAccepting(null);
+    }
+  };
   const tontineCount = useMemo(
     () => normalizeList(tontines.data, ["items", "tontines", "data"]).length,
     [tontines.data],
@@ -170,6 +196,15 @@ export default function PortalHomePage() {
       cta: string;
       tone: "brand" | "mint" | "ink";
     }> = [];
+    if (inviteCount > 0) {
+      actions.push({
+        title: t("home.invitesPending", { n: inviteCount }),
+        description: t("home.invitesDesc"),
+        href: "/app/invitations",
+        cta: t("invite.accept"),
+        tone: "mint",
+      });
+    }
     if (chatUnread > 0) {
       actions.push({
         title: t("home.msgPending", { n: chatUnread }),
@@ -177,15 +212,6 @@ export default function PortalHomePage() {
         href: "/app/chat",
         cta: t("home.openChatCta"),
         tone: "brand",
-      });
-    }
-    if (inviteCount > 0) {
-      actions.push({
-        title: t("home.invitesPending", { n: inviteCount }),
-        description: t("home.invitesDesc"),
-        href: "/app/invitations",
-        cta: t("home.seeInvites"),
-        tone: "mint",
       });
     }
     if (notifUnread > 0) {
@@ -331,6 +357,40 @@ export default function PortalHomePage() {
           </p>
         </Link>
       </section>
+
+      {pendingInvites.length > 0 ? (
+        <section className="space-y-2">
+          <SectionLabel>{t("invitations.received")}</SectionLabel>
+          <ul className="space-y-2">
+            {pendingInvites.slice(0, 3).map((inv) => {
+              const code = inv.invitationCode ?? inv.token ?? "";
+              return (
+                <li
+                  key={inv.id ?? code}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-mint-200/70 bg-mint-50/50 px-4 py-3"
+                >
+                  <div>
+                    <p className="font-semibold text-ink">
+                      {inv.contribution?.title ?? t("invitations.title")}
+                    </p>
+                    {inv.message ? (
+                      <p className="mt-0.5 text-sm text-ink-mute">{inv.message}</p>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={accepting === code}
+                    onClick={() => void acceptInvite(code)}
+                    className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                  >
+                    {t("invite.accept")}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       {nextActions.length > 0 ? (
         <section className="space-y-2">

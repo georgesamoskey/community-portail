@@ -9,12 +9,12 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n/context";
+import { captureMyPlace } from "@/lib/save-my-place";
 import { cx } from "@/lib/cx";
 import {
   applyTheme,
   connectionMeta,
   extractInviteFromText,
-  getGeoOnce,
   getThemeMode,
   haptic,
   openCameraStream,
@@ -306,12 +306,12 @@ export function NativeCapabilitiesSheet({
   const [scanOpen, setScanOpen] = useState(false);
 
   const locate = useCallback(async () => {
-    const g = await getGeoOnce();
-    if (!g) {
+    const place = await captureMyPlace();
+    if (!place?.city) {
       pushToast(t("native.geoDenied"), "warn");
       return;
     }
-    setGeo(`${g.lat.toFixed(3)}, ${g.lng.toFixed(3)}`);
+    setGeo(place.city);
     pushToast(t("native.geoOk"), "ok");
     haptic("success");
     router.push("/app/discover");

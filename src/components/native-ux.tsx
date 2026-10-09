@@ -134,7 +134,7 @@ export function BottomSheet({
   if (typeof document === "undefined" || !open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[70] md:hidden" role="presentation">
+    <div className="fixed inset-0 z-[110] md:hidden" role="presentation">
       <button
         type="button"
         className="absolute inset-0 animate-[native-fade_0.2s_ease] bg-ink/45 backdrop-blur-[2px]"

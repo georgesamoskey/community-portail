@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useOfflineOptional } from "@/lib/offline/context";
 import { listChatOutbox } from "@/lib/chat-cache";
+import { OUTBOX_CHANGED } from "@/lib/flush-chat-outbox";
 import { useI18n } from "@/lib/i18n/context";
 import { cx } from "@/lib/cx";
 import { haptic } from "@/lib/native";
@@ -32,10 +33,12 @@ export function OfflineBanner() {
     const id = window.setInterval(refresh, 8000);
     window.addEventListener("online", refresh);
     window.addEventListener("offline", refresh);
+    window.addEventListener(OUTBOX_CHANGED, refresh);
     return () => {
       window.clearInterval(id);
       window.removeEventListener("online", refresh);
       window.removeEventListener("offline", refresh);
+      window.removeEventListener(OUTBOX_CHANGED, refresh);
     };
   }, [offline, offline?.pendingCount]);
 
@@ -94,7 +97,11 @@ export function SyncStatusChip() {
     };
     refresh();
     const id = window.setInterval(refresh, 8000);
-    return () => window.clearInterval(id);
+    window.addEventListener(OUTBOX_CHANGED, refresh);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener(OUTBOX_CHANGED, refresh);
+    };
   }, [offline, offline?.pendingCount]);
 
   const total = (offline?.pendingCount ?? 0) + chatPending;
