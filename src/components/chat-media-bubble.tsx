@@ -50,7 +50,7 @@ function VoiceNote({ src, mine }: { src: string; mine?: boolean }) {
         type="button"
         className={cx(
           "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white",
-          mine ? "bg-[#00a884]" : "bg-brand-600",
+          mine ? "bg-brand-500" : "bg-brand-600",
         )}
         aria-label={playing ? t("chat.pause") : t("chat.play")}
         onClick={() => {
@@ -65,7 +65,7 @@ function VoiceNote({ src, mine }: { src: string; mine?: boolean }) {
       <div className="min-w-0 flex-1">
         <div className="h-1 overflow-hidden rounded-full bg-black/10">
           <div
-            className={cx("h-full rounded-full", mine ? "bg-[#00a884]" : "bg-brand-500")}
+            className={cx("h-full rounded-full", mine ? "bg-brand-500" : "bg-brand-500")}
             style={{ width: `${dur ? (progress / dur) * 100 : 0}%` }}
           />
         </div>

@@ -3,7 +3,7 @@
 import { cx } from "@/lib/cx";
 import { useI18n } from "@/lib/i18n/context";
 import type { ChatMessage } from "@/lib/portal-api";
-import { systemEventCopy } from "@/lib/system-event-text";
+import { resolveSystemEvent, systemEventCopy } from "@/lib/system-event-text";
 
 const CARD: Record<string, { emoji: string; className: string }> = {
   milestone_reached: {
@@ -67,6 +67,39 @@ const CARD: Record<string, { emoji: string; className: string }> = {
     emoji: "✨",
     className: "border-ink/10 bg-surface",
   },
+  asca_cycle_opened: {
+    emoji: "🔄",
+    className: "border-brand-200 bg-brand-50",
+  },
+  asca_cycle_closed: {
+    emoji: "🔄",
+    className: "border-brand-200 bg-brand-50",
+  },
+  asca_loan_requested: {
+    emoji: "🏦",
+    className: "border-brand-200 bg-brand-50",
+  },
+  asca_loan_sending: {
+    emoji: "🏦",
+    className: "border-brand-200 bg-brand-50",
+  },
+  asca_loan_disbursed: {
+    emoji: "✅",
+    className: "border-brand-200 bg-brand-50",
+  },
+  asca_deposit: {
+    emoji: "💰",
+    className: "border-brand-200 bg-brand-50",
+  },
+  asca_loan_repaid: {
+    emoji: "✅",
+    className: "border-brand-200 bg-brand-50",
+  },
+  asca_loan_defaulted: {
+    emoji: "⚠️",
+    className:
+      "border-[color:var(--danger-border)] bg-[var(--danger-bg)] text-[color:var(--danger-fg)]",
+  },
 };
 
 export function ChatEventCard({
@@ -77,7 +110,7 @@ export function ChatEventCard({
   highlight?: boolean;
 }) {
   const { t } = useI18n();
-  const type = message.eventType ?? "room_created";
+  const type = resolveSystemEvent(message.eventType, message.eventData) || "room_created";
   const meta = CARD[type] ?? {
     emoji: "•",
     className: "border-ink/10 bg-surface",

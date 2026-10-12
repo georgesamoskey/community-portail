@@ -86,7 +86,7 @@ export function VoiceRecordButton({
       onClick={() => (recording ? stop() : void start())}
       className={cx(
         "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white transition",
-        recording ? "animate-pulse bg-rose-500" : "bg-[#00a884]",
+        recording ? "animate-pulse bg-rose-500" : "bg-brand-500",
         disabled && "opacity-40",
       )}
     >

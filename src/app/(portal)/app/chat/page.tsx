@@ -25,7 +25,7 @@ import { cx } from "@/lib/cx";
 import { useI18n } from "@/lib/i18n/context";
 import { ChatEventCard } from "@/components/chat-event-card";
 import { activityKind } from "@/components/live-activity-list";
-import { systemEventCopy } from "@/lib/system-event-text";
+import { resolveSystemEvent, systemEventCopy } from "@/lib/system-event-text";
 import {
   ChatMessageRow,
   chatDayKey,
@@ -1132,7 +1132,9 @@ function ChatInner() {
               .reverse()
               .find((m) => m.eventType || m.type === "system");
             if (!latest || !selectedId) return null;
-            const kind = activityKind(latest.eventType);
+            const kind = activityKind(
+              resolveSystemEvent(latest.eventType, latest.eventData),
+            );
             const copy = systemEventCopy(
               t,
               latest.eventType,
@@ -1580,7 +1582,7 @@ function ChatInner() {
                 <button
                   type="submit"
                   disabled={!selectedId}
-                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white shadow-lift"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white shadow-lift"
                   aria-label={t("chat.send")}
                 >
                   <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -1591,7 +1593,7 @@ function ChatInner() {
                 <button
                   type="button"
                   disabled={!selectedId}
-                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-lg text-white disabled:opacity-40"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-500 text-lg text-white disabled:opacity-40"
                   aria-label={t("chat.voice")}
                   onClick={() => setRecording(true)}
                 >

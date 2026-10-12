@@ -5,7 +5,7 @@ import { MemberAvatar } from "@/components/member-avatar";
 import { cx } from "@/lib/cx";
 import { useI18n } from "@/lib/i18n/context";
 import { formatDateTime } from "@/lib/ui";
-import { systemEventCopy } from "@/lib/system-event-text";
+import { resolveSystemEvent, systemEventCopy } from "@/lib/system-event-text";
 
 export type LiveActivityItem = {
   id?: string;
@@ -36,6 +36,14 @@ const TONE: Record<string, string> = {
   tontine_round_completed: "border-brand-200 bg-brand-50 text-brand-950",
   tontine_completed: "border-amber-200 bg-amber-50 text-amber-950",
   room_created: "border-ink/10 bg-surface text-ink",
+  asca_cycle_opened: "border-brand-200 bg-brand-50 text-brand-950",
+  asca_cycle_closed: "border-brand-200 bg-brand-50 text-brand-950",
+  asca_loan_requested: "border-brand-200 bg-brand-50 text-brand-950",
+  asca_loan_sending: "border-brand-200 bg-brand-50 text-brand-950",
+  asca_loan_disbursed: "border-brand-200 bg-brand-50 text-brand-950",
+  asca_deposit: "border-brand-200 bg-brand-50 text-brand-950",
+  asca_loan_repaid: "border-brand-200 bg-brand-50 text-brand-950",
+  asca_loan_defaulted: "border-rose-200 bg-rose-50 text-rose-950",
 };
 
 export function activityKind(type?: string | null): { icon: string; labelKey: string } {
@@ -66,6 +74,18 @@ export function activityKind(type?: string | null): { icon: string; labelKey: st
       return { icon: "👋", labelKey: "home.actLeave" };
     case "room_created":
       return { icon: "💬", labelKey: "home.actRoom" };
+    case "asca_cycle_opened":
+    case "asca_cycle_closed":
+      return { icon: "🔄", labelKey: "home.actCycle" };
+    case "asca_loan_requested":
+    case "asca_loan_sending":
+    case "asca_loan_disbursed":
+    case "asca_loan_defaulted":
+      return { icon: "🏦", labelKey: "home.actLoan" };
+    case "asca_deposit":
+      return { icon: "💰", labelKey: "home.actDeposit" };
+    case "asca_loan_repaid":
+      return { icon: "✅", labelKey: "home.actRepay" };
     default:
       return { icon: "•", labelKey: "home.actOther" };
   }
@@ -90,9 +110,9 @@ export function LiveActivityList({
   return (
     <ul className={cx("space-y-2", compact && "space-y-1.5")}>
       {items.map((it) => {
-        const tone =
-          TONE[it.eventType ?? ""] ?? "border-ink/10 bg-surface text-ink";
-        const kind = activityKind(it.eventType);
+        const fact = resolveSystemEvent(it.eventType, it.eventData);
+        const tone = TONE[fact] ?? "border-ink/10 bg-surface text-ink";
+        const kind = activityKind(fact);
         const href = it.roomId
           ? `/app/chat?room=${it.roomId}`
           : it.contributionId

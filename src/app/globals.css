@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 :root {
-  --background: #f4f8fc;
+  --background: #f4faf6;
   --foreground: #0d1f33;
   --surface: #ffffff;
   --surface-raised: #fafcfe;
-  --surface-sunken: #e3edf8;
-  --accent: #337ab7;
-  --accent-deep: #1a5276;
-  --accent-soft: #d6eaf8;
+  --surface-sunken: #e7f6ec;
+  --accent: #1e8449;
+  --accent-deep: #146c3a;
+  --accent-soft: #e8f8ef;
   --mint: #0e9aa7;
   --mint-soft: #c5eef1;
   --ink: #0d1f33;
@@ -18,29 +18,29 @@
   --ink-mute: #546e8a;
   --ink-faint: #7a9ab5;
   --line: rgba(13, 31, 51, 0.08);
-  --glow-brand: rgba(51, 122, 183, 0.16);
+  --glow-brand: rgba(39, 174, 96, 0.16);
   --glow-teal: rgba(14, 154, 167, 0.12);
-  --body-grad-a: #f4f8fc;
-  --body-grad-b: #eef4fa;
-  --body-grad-c: #e8f4f5;
-  --chat-bg: #f4f8fc;
+  --body-grad-a: #f4faf6;
+  --body-grad-b: #eef8f2;
+  --body-grad-c: #e8f6ee;
+  --chat-bg: #f4faf6;
   --chat-bg-top: #fafcfe;
-  --selection-fg: #0d3b6b;
+  --selection-fg: #145a32;
   --shadow-soft: 0 1px 2px rgba(10, 31, 61, 0.04), 0 8px 24px rgba(10, 31, 61, 0.06);
-  --shadow-lift: 0 12px 40px rgba(51, 122, 183, 0.18), 0 4px 12px rgba(10, 31, 61, 0.06);
+  --shadow-lift: 0 12px 40px rgba(30, 132, 73, 0.18), 0 4px 12px rgba(10, 31, 61, 0.06);
   --shadow-chat: 0 0 0 1px rgba(10, 31, 61, 0.04), 0 20px 50px rgba(10, 31, 61, 0.08);
 
-  /* Trust Blue scale — ISO Color.kt */
-  --brand-50: #d6eaf8;
-  --brand-100: #b8d9f0;
-  --brand-200: #8bc0e4;
-  --brand-300: #5b9fd4;
-  --brand-400: #458fc8;
-  --brand-500: #337ab7;
-  --brand-600: #1a5276;
-  --brand-700: #0d3b6b;
-  --brand-800: #0a1f3d;
-  --brand-900: #061428;
+  /* Vert mobile Success #27AE60 — boutons un cran plus foncés pour le blanc */
+  --brand-50: #e8f8ef;
+  --brand-100: #c9f0d8;
+  --brand-200: #9be0b8;
+  --brand-300: #5fcb8a;
+  --brand-400: #27ae60;
+  --brand-500: #1e8449;
+  --brand-600: #196f3d;
+  --brand-700: #145a32;
+  --brand-800: #0e3d22;
+  --brand-900: #082616;
 
   --mint-50: #e6f7f8;
   --mint-100: #c5eef1;
@@ -72,9 +72,9 @@ html.dark {
   --surface: #122338;
   --surface-raised: #163049;
   --surface-sunken: #0e1f33;
-  --accent: #5ba3d9;
-  --accent-deep: #337ab7;
-  --accent-soft: #1a3a5c;
+  --accent: #3ddc84;
+  --accent-deep: #27ae60;
+  --accent-soft: #0e3d22;
   --mint: #2ec4b6;
   --mint-soft: #0e3d42;
   --ink: #e8f0f8;
@@ -82,7 +82,7 @@ html.dark {
   --ink-mute: #8aa4bc;
   --ink-faint: #6b849c;
   --line: rgba(232, 240, 248, 0.1);
-  --glow-brand: rgba(91, 163, 217, 0.18);
+  --glow-brand: rgba(61, 220, 132, 0.18);
   --glow-teal: rgba(46, 196, 182, 0.12);
   --body-grad-a: #0b1a2b;
   --body-grad-b: #0f2236;
@@ -91,19 +91,19 @@ html.dark {
   --chat-bg-top: #122338;
   --selection-fg: #e8f0f8;
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 28px rgba(0, 0, 0, 0.28);
-  --shadow-lift: 0 12px 40px rgba(91, 163, 217, 0.22), 0 4px 12px rgba(0, 0, 0, 0.25);
+  --shadow-lift: 0 12px 40px rgba(39, 174, 96, 0.22), 0 4px 12px rgba(0, 0, 0, 0.25);
   --shadow-chat: 0 0 0 1px rgba(232, 240, 248, 0.06), 0 20px 50px rgba(0, 0, 0, 0.35);
 
-  --brand-50: #1a3a5c;
-  --brand-100: #1e4570;
-  --brand-200: #2a5a8a;
-  --brand-300: #458fc8;
-  --brand-400: #5b9fd4;
-  --brand-500: #5ba3d9;
-  --brand-600: #337ab7;
-  --brand-700: #8bc0e4;
-  --brand-800: #b8d9f0;
-  --brand-900: #d6eaf8;
+  --brand-50: #0e3d22;
+  --brand-100: #145a32;
+  --brand-200: #196f3d;
+  --brand-300: #1e8449;
+  --brand-400: #27ae60;
+  --brand-500: #3ddc84;
+  --brand-600: #5fcb8a;
+  --brand-700: #9be0b8;
+  --brand-800: #c9f0d8;
+  --brand-900: #e8f8ef;
 
   --mint-50: #0e3d42;
   --mint-100: #125056;
@@ -545,11 +545,11 @@ html.dark .chat-bubble-out .chat-tick-read {
   letter-spacing: -0.03em;
 }
 
-/* Gradient splash / header ISO mobile (Navy → Trust Blue → Teal) */
+/* Gradient splash / header — vert mobile Success #27AE60 */
 .mobile-trust-gradient {
-  background: linear-gradient(135deg, #1a3a5c 0%, #337ab7 52%, #0e9aa7 100%);
+  background: linear-gradient(135deg, #0e3d22 0%, #1e8449 52%, #27ae60 100%);
 }
 
 html.dark .mobile-trust-gradient {
-  background: linear-gradient(135deg, #0b1a2b 0%, #1a5276 48%, #0e7580 100%);
+  background: linear-gradient(135deg, #082616 0%, #146c3a 48%, #1e8449 100%);
 }

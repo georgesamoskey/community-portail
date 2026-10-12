@@ -3,10 +3,9 @@ type Translate = (
   params?: Record<string, string | number>,
 ) => string;
 
-function text(
-  data: Record<string, unknown> | null | undefined,
-  keys: string[],
-): string {
+type EventData = Record<string, unknown> | null | undefined;
+
+function text(data: EventData, keys: string[]): string {
   for (const key of keys) {
     const value = data?.[key];
     if (typeof value === "string" && value.trim()) return value.trim();
@@ -15,19 +14,109 @@ function text(
   return "";
 }
 
-function money(data: Record<string, unknown> | null | undefined): string {
-  const amount = text(data, ["amount"]);
+function money(data: EventData): string {
+  const amount = text(data, ["amount", "principal"]);
   const currency = text(data, ["currency"]);
   return [amount, currency].filter(Boolean).join(" ");
+}
+
+/** Type affiché : un ancien événement ASCA générique redevient le vrai fait. */
+export function resolveSystemEvent(
+  eventType?: string | null,
+  eventData?: EventData,
+): string {
+  const kind = text(eventData, ["kind"]);
+  if (kind === "loan_requested") return "asca_loan_requested";
+  if (kind === "loan_disburse_requested") return "asca_loan_sending";
+  if (kind === "loan_disbursed") return "asca_loan_disbursed";
+  if (kind === "deposit") return "asca_deposit";
+  if (kind === "loan_repayment") return "asca_loan_repaid";
+  if (kind === "loan_defaulted") return "asca_loan_defaulted";
+  if (kind === "cycle_opened") return "asca_cycle_opened";
+  if (kind === "cycle_closed") return "asca_cycle_closed";
+  if (eventData?.asca === true && eventType === "tontine_round_completed") {
+    return "openNext" in (eventData ?? {})
+      ? "asca_cycle_closed"
+      : "asca_cycle_opened";
+  }
+  return eventType ?? "";
+}
+
+function ascaCopy(
+  t: Translate,
+  fact: string,
+  data: EventData,
+): { title: string; body: string } | null {
+  const sum = money(data);
+  const cycle = text(data, ["cycleIndex", "roundIndex"]) || "1";
+  if (fact === "asca_cycle_opened") {
+    return {
+      title: t("chat.sysCycleOpenTitle"),
+      body: t("chat.sysCycleOpen", { cycle }),
+    };
+  }
+  if (fact === "asca_cycle_closed") {
+    const next = data?.openNext === true;
+    return {
+      title: t("chat.sysCycleCloseTitle"),
+      body: next
+        ? t("chat.sysCycleNext", { cycle })
+        : t("chat.sysCycleClose", { cycle }),
+    };
+  }
+  if (fact === "asca_loan_requested") {
+    return {
+      title: t("chat.sysLoanAskTitle"),
+      body: sum ? t("chat.sysLoanAsk", { amount: sum }) : t("chat.sysLoanAskTitle"),
+    };
+  }
+  if (fact === "asca_loan_sending") {
+    return {
+      title: t("chat.sysLoanSendTitle"),
+      body: sum ? t("chat.sysLoanSend", { amount: sum }) : t("chat.sysLoanSendTitle"),
+    };
+  }
+  if (fact === "asca_loan_disbursed") {
+    return {
+      title: t("chat.sysLoanOutTitle"),
+      body: sum ? t("chat.sysLoanOut", { amount: sum }) : t("chat.sysLoanOutTitle"),
+    };
+  }
+  if (fact === "asca_deposit") {
+    return {
+      title: t("chat.sysDepositTitle"),
+      body: sum ? t("chat.sysDeposit", { amount: sum }) : t("chat.sysDepositTitle"),
+    };
+  }
+  if (fact === "asca_loan_repaid") {
+    const settled = data?.settled === true;
+    return {
+      title: t("chat.sysRepayTitle"),
+      body: settled
+        ? t("chat.sysRepayDone", { amount: sum })
+        : t("chat.sysRepay", { amount: sum }),
+    };
+  }
+  if (fact === "asca_loan_defaulted") {
+    return {
+      title: t("chat.sysLoanMissTitle"),
+      body: t("chat.sysLoanMiss"),
+    };
+  }
+  return null;
 }
 
 /** Titre et phrase d’un message système, dans la langue de l’interface. */
 export function systemEventCopy(
   t: Translate,
   eventType?: string | null,
-  eventData?: Record<string, unknown> | null,
+  eventData?: EventData,
   fallback?: string,
 ): { title: string; body: string } {
+  const fact = resolveSystemEvent(eventType, eventData);
+  const asca = ascaCopy(t, fact, eventData);
+  if (asca) return asca;
+
   const name = text(eventData, ["userName", "actorName", "name"]);
   const sum = money(eventData);
   const round = text(eventData, ["roundIndex"]) || "—";
@@ -35,7 +124,7 @@ export function systemEventCopy(
   const circle = text(eventData, ["tontineTitle", "title"]) || t("chat.sysCircle");
   const count = text(eventData, ["eventCount"]) || "0";
 
-  switch (eventType) {
+  switch (fact) {
     case "room_created":
       return { title: t("chat.sysRoomTitle"), body: t("chat.sysRoom") };
     case "participant_joined":

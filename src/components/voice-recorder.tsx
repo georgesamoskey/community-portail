@@ -195,7 +195,7 @@ export function VoiceRecorder({
       <Waveform stream={stream} />
       <button
         type="button"
-        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white"
+        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white"
         aria-label={sendLabel}
         onClick={() => finish(true)}
       >
