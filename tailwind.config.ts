@@ -1,8 +1,8 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Palette portail — vert mobile Success #27AE60 (Color.kt)
- * Navy pour le texte, Trust Teal en secondaire — tokens CSS (:root / html.dark)
+ * Palette « Confiance & Assurance » — ISO Android (Color.kt)
+ * Trust Blue · Navy · Trust Teal — tokens CSS (:root / html.dark)
  */
 export default {
   darkMode: "class",
