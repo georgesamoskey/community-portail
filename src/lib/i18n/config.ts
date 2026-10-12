@@ -1,6 +1,6 @@
 /** Référentiel multi-pays / multi-langues (aligné eagaseke). */
 
-export const LOCALES = ["fr", "en", "rn", "sw"] as const;
+export const LOCALES = ["fr", "en", "rn", "sw", "ln"] as const;
 export type Locale = (typeof LOCALES)[number];
 
 export const COUNTRIES = [
@@ -25,6 +25,7 @@ export const LOCALE_META: Record<
   en: { name: "English", nativeName: "English", bcp47: "en-GB" },
   rn: { name: "Kirundi", nativeName: "Ikirundi", bcp47: "rn-BI" },
   sw: { name: "Swahili", nativeName: "Kiswahili", bcp47: "sw-TZ" },
+  ln: { name: "Lingala", nativeName: "Lingála", bcp47: "ln-CD" },
 };
 
 export const COUNTRY_META: Record<
@@ -51,7 +52,7 @@ export const COUNTRY_META: Record<
     flag: "🇨🇩",
     currency: "CDF",
     dial: "+243",
-    languages: ["fr", "en"],
+    languages: ["fr", "sw", "ln", "en"],
     defaultLocale: "fr",
   },
   RW: {
