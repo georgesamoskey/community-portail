@@ -151,6 +151,19 @@ export default function TontineDetailPage() {
     [ton],
   );
 
+  const seatTaken = members.filter((m) =>
+    ["invited", "accepted", "active"].includes((m.status ?? "").toLowerCase()),
+  ).length;
+  const seatAccepted = members.filter((m) =>
+    ["accepted", "active"].includes((m.status ?? "").toLowerCase()),
+  ).length;
+  const seatLimit = ton?.seats ?? 0;
+  const seatsFull = seatLimit > 0 && seatTaken >= seatLimit;
+  const rosterReady =
+    seatLimit > 0 &&
+    seatAccepted === seatLimit &&
+    (ton?.status === "recruiting" || ton?.status === "draft");
+
   const trustByUser = useTrustBatch(
     members.map((m) => m.userId ?? m.user?.id ?? m.id),
   );
@@ -1150,7 +1163,7 @@ export default function TontineDetailPage() {
               <Btn variant="secondary" onClick={accept} disabled={action.busy}>
                 {t("tontines.acceptInvite")}
               </Btn>
-              <Btn onClick={start} disabled={action.busy}>
+              <Btn onClick={start} disabled={action.busy || !rosterReady}>
                 {t("tontines.startCycle")}
               </Btn>
               <Btn variant="danger" onClick={cancel} disabled={action.busy}>
@@ -1167,6 +1180,12 @@ export default function TontineDetailPage() {
           {tab === "people" && (
             <div className="space-y-4">
             <Panel title={`${t("tontines.tabMembers")} (${members.length})`}>
+              {seatLimit > 0 ? (
+                <p className="mb-2 text-xs font-semibold text-ink-mute">
+                  {t("tontines.seatCap", { taken: seatTaken, seats: seatLimit })}
+                  {rosterReady ? ` · ${t("tontines.startCycle")}` : ""}
+                </p>
+              ) : null}
               {members.length === 0 ? (
                 <EmptyState>{t("tontines.noMembers")}</EmptyState>
               ) : (
@@ -1270,7 +1289,7 @@ export default function TontineDetailPage() {
                   />
                 </Field>
                 <Btn
-                  disabled={!inviteUserId || action.busy}
+                  disabled={!inviteUserId || action.busy || seatsFull}
                   onClick={invite}
                 >
                   {t("common.invite")}

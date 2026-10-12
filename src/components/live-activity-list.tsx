@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { MemberAvatar } from "@/components/member-avatar";
 import { cx } from "@/lib/cx";
+import { useI18n } from "@/lib/i18n/context";
 import { formatDateTime } from "@/lib/ui";
+import { systemEventCopy } from "@/lib/system-event-text";
 
 export type LiveActivityItem = {
   id?: string;
@@ -13,6 +15,7 @@ export type LiveActivityItem = {
   tontineId?: string | null;
   eventType?: string;
   content?: string;
+  eventData?: Record<string, unknown> | null;
   actorUserId?: string | null;
   actorName?: string | null;
   actorAvatar?: string | null;
@@ -35,31 +38,36 @@ const TONE: Record<string, string> = {
   room_created: "border-ink/10 bg-surface text-ink",
 };
 
-function iconFor(type?: string): string {
+export function activityKind(type?: string | null): { icon: string; labelKey: string } {
   switch (type) {
     case "milestone_reached":
-      return "🎯";
+      return { icon: "🎯", labelKey: "home.actStep" };
     case "goal_reached":
-      return "🏁";
+      return { icon: "🏁", labelKey: "home.actGoal" };
     case "cotisation_confirmed":
+      return { icon: "✅", labelKey: "home.actOk" };
     case "tontine_round_paid":
-      return "✅";
+      return { icon: "✅", labelKey: "home.actRound" };
     case "cotisation_new":
-      return "💸";
+      return { icon: "💸", labelKey: "home.actPay" };
     case "commitment":
-      return "🤝";
+      return { icon: "🤝", labelKey: "home.actDeal" };
     case "tontine_defaulted":
-      return "⚠️";
+      return { icon: "⚠️", labelKey: "home.actMiss" };
     case "tontine_round_completed":
-      return "🔄";
+      return { icon: "🔄", labelKey: "home.actRound" };
     case "tontine_completed":
-      return "🏆";
+      return { icon: "🏆", labelKey: "home.actDone" };
     case "contribution_closed":
-      return "🔒";
+      return { icon: "🔒", labelKey: "home.actClose" };
     case "participant_joined":
-      return "👋";
+      return { icon: "👋", labelKey: "home.actJoin" };
+    case "participant_left":
+      return { icon: "👋", labelKey: "home.actLeave" };
+    case "room_created":
+      return { icon: "💬", labelKey: "home.actRoom" };
     default:
-      return "•";
+      return { icon: "•", labelKey: "home.actOther" };
   }
 }
 
@@ -74,6 +82,7 @@ export function LiveActivityList({
   showRoomLink?: boolean;
   compact?: boolean;
 }) {
+  const { t } = useI18n();
   if (!items.length) {
     return <p className="text-sm text-ink-mute">{emptyLabel}</p>;
   }
@@ -83,6 +92,7 @@ export function LiveActivityList({
       {items.map((it) => {
         const tone =
           TONE[it.eventType ?? ""] ?? "border-ink/10 bg-surface text-ink";
+        const kind = activityKind(it.eventType);
         const href = it.roomId
           ? `/app/chat?room=${it.roomId}`
           : it.contributionId
@@ -106,11 +116,10 @@ export function LiveActivityList({
                   size="sm"
                   className="mt-0.5 shrink-0"
                 />
-              ) : (
-                <span className="shrink-0" aria-hidden>
-                  {iconFor(it.eventType)}
-                </span>
-              )}
+              ) : null}
+              <span className="shrink-0 text-xs font-bold">
+                {kind.icon} {t(kind.labelKey)}
+              </span>
               <div className="min-w-0 flex-1">
                 {showRoomLink && it.roomName ? (
                   <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">
@@ -120,7 +129,9 @@ export function LiveActivityList({
                 {it.actorName ? (
                   <p className="text-[11px] font-bold opacity-80">{it.actorName}</p>
                 ) : null}
-                <p className="font-medium leading-snug">{it.content}</p>
+                <p className="font-medium leading-snug">
+                  {systemEventCopy(t, it.eventType, it.eventData, it.content).body}
+                </p>
                 {it.createdAt ? (
                   <p className="mt-0.5 text-[10px] opacity-60">
                     {formatDateTime(it.createdAt)}

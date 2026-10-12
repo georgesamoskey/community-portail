@@ -100,7 +100,10 @@ export function useChatSocket(enabled: boolean) {
       setError(typeof msg === "string" ? msg : "Erreur chat");
     });
     socket.on("newMessage", (msg: ChatMessage) => {
-      setLiveMessages((prev) => [...prev, msg]);
+      setLiveMessages((prev) => {
+        if (msg?.id && prev.some((item) => item.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
     });
     socket.on("messageUpdated", (msg: ChatMessage) => {
       if (!msg?.id) return;

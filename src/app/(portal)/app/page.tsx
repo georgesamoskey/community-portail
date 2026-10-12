@@ -239,6 +239,38 @@ export default function PortalHomePage() {
 
   return (
     <div className="relative space-y-5 pb-20">
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <SectionLabel>{t("home.circleActivity")}</SectionLabel>
+          <Link href="/app/chat" className="text-xs font-bold text-brand-600">
+            {t("common.seeAll")}
+          </Link>
+        </div>
+        {circleActivity.loading && activityItems.length === 0 ? (
+          <p className="text-sm text-ink-mute">{t("common.loading")}</p>
+        ) : activityItems.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-ink/10 bg-surface-sunken/40 px-4 py-3">
+            <p className="text-sm text-ink-mute">
+              {t("home.circleActivityEmpty")}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Link href="/app/chat" className="text-xs font-bold text-brand-600">
+                {t("home.openChat")}
+              </Link>
+              <span className="text-ink-faint">·</span>
+              <Link
+                href="/app/contributions#create"
+                className="text-xs font-bold text-brand-600"
+              >
+                {t("home.createPot")}
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <LiveActivityList items={activityItems} showRoomLink compact />
+        )}
+      </section>
+
       <MobileHero>
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -276,45 +308,6 @@ export default function PortalHomePage() {
           />
         </div>
       </MobileHero>
-
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <SectionLabel>{t("home.circleActivity")}</SectionLabel>
-          <Link href="/app/chat" className="text-xs font-bold text-brand-600">
-            {t("common.seeAll")}
-          </Link>
-        </div>
-        {circleActivity.loading && activityItems.length === 0 ? (
-          <p className="text-sm text-ink-mute">{t("common.loading")}</p>
-        ) : activityItems.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-ink/10 bg-surface-sunken/40 px-4 py-3">
-            <p className="text-sm text-ink-mute">
-              {t("home.circleActivityEmpty")}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Link
-                href="/app/chat"
-                className="text-xs font-bold text-brand-600"
-              >
-                {t("home.openChat")}
-              </Link>
-              <span className="text-ink-faint">·</span>
-              <Link
-                href="/app/contributions#create"
-                className="text-xs font-bold text-brand-600"
-              >
-                {t("home.createPot")}
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <LiveActivityList
-            items={activityItems}
-            showRoomLink
-            compact
-          />
-        )}
-      </section>
 
       <div className="flex flex-wrap gap-2">
         <QuickChip href="/app/chat">{t("nav.messages")}</QuickChip>

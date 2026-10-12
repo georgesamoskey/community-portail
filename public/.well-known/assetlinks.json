@@ -3,9 +3,9 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.akibaone.portal.twa",
+      "package_name": "com.dondev.ESocial",
       "sha256_cert_fingerprints": [
-        "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+        "CD:EA:8F:95:29:66:EF:F3:2C:C5:01:6B:DD:92:B6:5D:2E:39:22:AC:CE:AD:7B:5F:90:7E:4F:5E:4E:3F:C8:4B"
       ]
     }
   }

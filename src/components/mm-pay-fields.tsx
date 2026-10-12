@@ -94,27 +94,6 @@ export function MmPayFields({
           {activeCurrency ? ` · ${activeCurrency}` : ""}
         </p>
       ) : null}
-      <Field label={t("payments.operator")}>
-        <select
-          className={inputClass}
-          value={picked}
-          onChange={(e) => {
-            const next = e.target.value;
-            setPicked(next);
-            if (next) onProvider(next);
-          }}
-        >
-          <option value="">{t("tontines.choose")}</option>
-          {list.map((item) => {
-            const key = providerOptionKey(item);
-            return (
-              <option key={key} value={key}>
-                {providerLabel(item)}
-              </option>
-            );
-          })}
-        </select>
-      </Field>
       <Field label={t("payments.currency")}>
         <select
           className={inputClass}
@@ -138,6 +117,31 @@ export function MmPayFields({
           inputMode="tel"
           autoComplete="tel"
         />
+      </Field>
+      <Field label={t("payments.operator")}>
+        <div className="flex flex-wrap gap-2" role="group" aria-label={t("payments.operator")}>
+          {list.map((item) => {
+            const key = providerOptionKey(item);
+            const on = picked === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                className={
+                  on
+                    ? "rounded-full border border-brand-600 bg-brand-50 px-3 py-2 text-sm font-bold text-brand-800"
+                    : "rounded-full border border-ink/15 bg-surface px-3 py-2 text-sm font-semibold text-ink"
+                }
+                onClick={() => {
+                  setPicked(key);
+                  if (key) onProvider(key);
+                }}
+              >
+                {providerLabel(item)}
+              </button>
+            );
+          })}
+        </div>
       </Field>
     </>
   );

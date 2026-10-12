@@ -1,85 +1,70 @@
 "use client";
 
 import { cx } from "@/lib/cx";
+import { useI18n } from "@/lib/i18n/context";
 import type { ChatMessage } from "@/lib/portal-api";
+import { systemEventCopy } from "@/lib/system-event-text";
 
-const CARD: Record<
-  string,
-  { emoji: string; title: string; className: string }
-> = {
+const CARD: Record<string, { emoji: string; className: string }> = {
   milestone_reached: {
     emoji: "🎯",
-    title: "Palier atteint",
     className:
       "border-[color:var(--warn-border)] bg-gradient-to-br from-[var(--warn-bg)] to-surface",
   },
   goal_reached: {
     emoji: "🏁",
-    title: "Objectif atteint",
     className: "border-mint-200 bg-gradient-to-br from-mint-50 to-surface",
   },
   cotisation_confirmed: {
     emoji: "✅",
-    title: "Cotisation confirmée",
     className: "border-brand-200 bg-gradient-to-br from-brand-50 to-surface",
   },
   cotisation_new: {
     emoji: "💸",
-    title: "Cotisation déclarée",
     className:
       "border-[color:var(--info-border)] bg-gradient-to-br from-[var(--info-bg)] to-surface",
   },
   commitment: {
     emoji: "🤝",
-    title: "Engagement",
     className: "border-brand-200/80 bg-gradient-to-br from-brand-50/80 to-mint-50/40",
   },
   participant_joined: {
     emoji: "👋",
-    title: "Nouveau membre",
     className: "border-ink/10 bg-surface",
   },
   participant_left: {
     emoji: "🚪",
-    title: "Départ",
     className: "border-ink/10 bg-surface-sunken",
   },
   contribution_closed: {
     emoji: "🔒",
-    title: "Cagnotte clôturée",
     className:
       "border-[color:var(--danger-border)] bg-[var(--danger-bg)] text-[color:var(--danger-fg)]",
   },
   tontine_round_paid: {
     emoji: "✅",
-    title: "Tour payé",
     className: "border-mint-200 bg-mint-50",
   },
   tontine_defaulted: {
     emoji: "⚠️",
-    title: "Défaut",
     className:
       "border-[color:var(--danger-border)] bg-[var(--danger-bg)] text-[color:var(--danger-fg)]",
   },
   tontine_round_completed: {
     emoji: "🔄",
-    title: "Tour clôturé",
     className: "border-brand-200 bg-brand-50",
   },
   tontine_completed: {
     emoji: "🏆",
-    title: "Tontine terminée",
     className:
       "border-[color:var(--warn-border)] bg-[var(--warn-bg)] text-[color:var(--warn-fg)]",
   },
   daily_summary: {
     emoji: "☀️",
-    title: "Résumé du jour",
     className: "border-ink/10 bg-gradient-to-br from-surface to-mint-50/40",
   },
   room_created: {
     emoji: "✨",
-    title: "Cercle ouvert",
     className: "border-ink/10 bg-surface",
   },
 };
@@ -91,12 +76,13 @@ export function ChatEventCard({
   message: ChatMessage;
   highlight?: boolean;
 }) {
+  const { t } = useI18n();
   const type = message.eventType ?? "room_created";
   const meta = CARD[type] ?? {
     emoji: "•",
-    title: "Activité",
     className: "border-ink/10 bg-surface",
   };
+  const copy = systemEventCopy(t, message.eventType, message.eventData, message.content);
   const amount = message.eventData?.amount;
   const currency = message.eventData?.currency ?? "BIF";
   const percent = message.eventData?.percent ?? message.eventData?.milestone;
@@ -116,10 +102,10 @@ export function ChatEventCard({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-bold uppercase tracking-wider text-ink-mute">
-            {meta.title}
+            {copy.title}
           </p>
           <p className="mt-0.5 text-sm font-semibold leading-snug text-ink">
-            {message.content}
+            {copy.body}
           </p>
           {(amount != null || percent != null) && (
             <p className="mt-1.5 font-mono text-xs font-bold text-brand-700">
