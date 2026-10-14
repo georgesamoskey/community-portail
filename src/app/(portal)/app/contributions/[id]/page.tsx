@@ -32,6 +32,7 @@ import { useTrustBatch } from "@/lib/use-trust-batch";
 import { markPushMoment } from "@/components/push-prompt";
 import { memberDisplayName } from "@/lib/member-display";
 import { MmPayFields } from "@/components/mm-pay-fields";
+import { InviteLinkPanel } from "@/components/invite-link-panel";
 import { displayCurrency, railSlug } from "@/lib/mm-market";
 import { useMarketCountry } from "@/lib/use-market-country";
 
@@ -150,6 +151,9 @@ function ContributionDetailInner() {
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [inviteLinks, setInviteLinks] = useState<unknown[]>([]);
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
+  const [inviteLinkState, setInviteLinkState] = useState<
+    "loading" | "ready" | "denied"
+  >("loading");
   const [participants, setParticipants] = useState<
     Array<{
       id?: string;
@@ -184,6 +188,27 @@ function ContributionDetailInner() {
     if (declareOnLaunch) setTab("pay");
     else if (highlightCotisation) setTab("money");
   }, [declareOnLaunch, highlightCotisation]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await bffFetch<{ inviteUrl?: string }>(
+          `/invitations/share/contribution/${id}`,
+          { method: "POST" },
+        );
+        if (cancelled) return;
+        if (data.inviteUrl) setLastInviteLink(data.inviteUrl);
+        setInviteLinkState(data.inviteUrl ? "ready" : "denied");
+      } catch {
+        if (!cancelled) setInviteLinkState("denied");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   // Préremplir MM : montant unique, 1er provider, téléphone du profil
   useEffect(() => {
@@ -725,6 +750,107 @@ function ContributionDetailInner() {
             </a>
           ) : null}
 
+          {inviteLinkState !== "denied" ? (
+            <Panel title={t("pots.invitations")}>
+              <InviteLinkPanel
+                hint={t("invite.shareHintPot")}
+                url={lastInviteLink}
+                busy={inviteLinkState === "loading"}
+                shareText={t("invite.shareText", {
+                  title: c?.title ?? t("invite.pot"),
+                  url: lastInviteLink ?? "",
+                })}
+                otherLabel={t("invite.otherEmail")}
+              >
+                <div className="grid gap-3">
+                  <Field label={t("common.email")}>
+                    <input
+                      className={inputClass}
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                    />
+                  </Field>
+                  <Field label={t("common.phone")}>
+                    <input
+                      className={inputClass}
+                      value={invitePhone}
+                      onChange={(e) => setInvitePhone(e.target.value)}
+                    />
+                  </Field>
+                  <Field label={t("pots.message")}>
+                    <input
+                      className={inputClass}
+                      value={inviteMsg}
+                      onChange={(e) => setInviteMsg(e.target.value)}
+                    />
+                  </Field>
+                  <div className="flex flex-wrap gap-2">
+                    <Btn
+                      disabled={
+                        action.busy || (!inviteEmail.trim() && !invitePhone.trim())
+                      }
+                      onClick={invite}
+                    >
+                      {t("common.invite")}
+                    </Btn>
+                    <Btn variant="secondary" onClick={createInviteLink}>
+                      {t("pots.createLink")}
+                    </Btn>
+                    <Btn variant="ghost" onClick={loadInviteLinks}>
+                      {t("pots.listLinks")}
+                    </Btn>
+                    <Link
+                      href="/app/invitations"
+                      className="rounded-xl border border-brand-200 px-3.5 py-2 text-sm font-semibold text-brand-800"
+                    >
+                      {t("pots.myInvites")}
+                    </Link>
+                  </div>
+                  {inviteLinks.length > 0 && (
+                    <ul className="mt-3 divide-y divide-ink/[0.06] text-sm">
+                      {inviteLinks.map((raw, i) => {
+                        const link = raw as {
+                          id?: string;
+                          token?: string;
+                          expiresAt?: string;
+                        };
+                        return (
+                          <li
+                            key={link.id ?? i}
+                            className="flex flex-wrap items-center justify-between gap-2 py-2"
+                          >
+                            <span className="font-mono text-xs">
+                              {(link.token ?? link.id ?? "?").slice(0, 14)}…
+                            </span>
+                            <div className="flex gap-1">
+                              {link.token ? (
+                                <Link
+                                  href={`/invite/${link.token}`}
+                                  className="text-xs font-semibold text-brand-600"
+                                >
+                                  {t("common.open")}
+                                </Link>
+                              ) : null}
+                              {link.id ? (
+                                <Btn
+                                  variant="danger"
+                                  className="text-xs"
+                                  onClick={() => revokeLink(link.id!)}
+                                >
+                                  {t("pots.revoke")}
+                                </Btn>
+                              ) : null}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </InviteLinkPanel>
+            </Panel>
+          ) : null}
+
           <SegmentedTabs
             value={tab}
             onChange={setTab}
@@ -1187,126 +1313,6 @@ function ContributionDetailInner() {
           {tab === "people" && (
             <div className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-2">
-            <Panel title={t("pots.invitations")}>
-              <div className="grid gap-3">
-                <Field label={t("common.email")}>
-                  <input
-                    className={inputClass}
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                  />
-                </Field>
-                <Field label={t("common.phone")}>
-                  <input
-                    className={inputClass}
-                    value={invitePhone}
-                    onChange={(e) => setInvitePhone(e.target.value)}
-                  />
-                </Field>
-                <Field label={t("pots.message")}>
-                  <input
-                    className={inputClass}
-                    value={inviteMsg}
-                    onChange={(e) => setInviteMsg(e.target.value)}
-                  />
-                </Field>
-                <div className="flex flex-wrap gap-2">
-                  <Btn
-                    disabled={
-                      action.busy || (!inviteEmail.trim() && !invitePhone.trim())
-                    }
-                    onClick={invite}
-                  >
-                    {t("common.invite")}
-                  </Btn>
-                  <Btn variant="secondary" onClick={createInviteLink}>
-                    {t("pots.createLink")}
-                  </Btn>
-                  <Btn
-                    variant="secondary"
-                    disabled={action.busy}
-                    onClick={() =>
-                      void action.run(async () => {
-                        const data = await bffFetch<{
-                          share?: {
-                            whatsappUrl?: string;
-                            smsUrl?: string;
-                            text?: string;
-                            url?: string;
-                          };
-                          inviteUrl?: string;
-                        }>(`/invitations/share/contribution/${id}`, {
-                          method: "POST",
-                        });
-                        const wa = data.share?.whatsappUrl;
-                        if (wa && typeof window !== "undefined") {
-                          window.open(wa, "_blank", "noopener,noreferrer");
-                        }
-                        if (data.inviteUrl) setLastInviteLink(data.inviteUrl);
-                        return data;
-                      }, { success: t("pots.okLink") })
-                    }
-                  >
-                    WhatsApp
-                  </Btn>
-                  <Btn variant="ghost" onClick={loadInviteLinks}>
-                    {t("pots.listLinks")}
-                  </Btn>
-                  <Link
-                    href="/app/invitations"
-                    className="rounded-xl border border-brand-200 px-3.5 py-2 text-sm font-semibold text-brand-800"
-                  >
-                    {t("pots.myInvites")}
-                  </Link>
-                </div>
-                {lastInviteLink && (
-                  <p className="mt-3 break-all rounded-xl bg-mint-50 p-3 text-xs text-mint-900">
-                    {t("pots.link")} {lastInviteLink}
-                  </p>
-                )}
-                {inviteLinks.length > 0 && (
-                  <ul className="mt-3 divide-y divide-ink/[0.06] text-sm">
-                    {inviteLinks.map((raw, i) => {
-                      const link = raw as {
-                        id?: string;
-                        token?: string;
-                        expiresAt?: string;
-                      };
-                      return (
-                        <li
-                          key={link.id ?? i}
-                          className="flex flex-wrap items-center justify-between gap-2 py-2"
-                        >
-                          <span className="font-mono text-xs">
-                            {(link.token ?? link.id ?? "?").slice(0, 14)}…
-                          </span>
-                          <div className="flex gap-1">
-                            {link.token ? (
-                              <Link
-                                href={`/invite/${link.token}`}
-                                className="text-xs font-semibold text-brand-600"
-                              >
-                                {t("common.open")}
-                              </Link>
-                            ) : null}
-                            {link.id ? (
-                              <Btn
-                                variant="danger"
-                                className="text-xs"
-                                onClick={() => revokeLink(link.id!)}
-                              >
-                                {t("pots.revoke")}
-                              </Btn>
-                            ) : null}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            </Panel>
-
             <Panel title={t("pots.participants")}>
               <div className="flex flex-wrap gap-2">
                 <Btn variant="secondary" onClick={loadParticipants}>

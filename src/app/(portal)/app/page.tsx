@@ -12,7 +12,6 @@ import {
   type ChatRoom,
 } from "@/lib/portal-api";
 import { cx } from "@/lib/cx";
-import { NextStepCard } from "@/lib/ui";
 import {
   ONBOARDING_STEPS,
   checklistProgress,
@@ -34,7 +33,6 @@ import {
   type ContributionLike,
   MobileEmpty,
   MobileHero,
-  QuickChip,
   SectionLabel,
   TabFab,
 } from "@/components/mobile-iso";
@@ -129,7 +127,6 @@ export default function PortalHomePage() {
       return status === "pending" && Boolean(inv.invitationCode || inv.token);
     });
   }, [invitations.data]);
-  const inviteCount = pendingInvites.length;
   const [accepting, setAccepting] = useState<string | null>(null);
 
   const acceptInvite = async (code: string) => {
@@ -188,44 +185,6 @@ export default function PortalHomePage() {
     [engagement.data, acceptedInvites],
   );
 
-  const nextActions = useMemo(() => {
-    const actions: Array<{
-      title: string;
-      description: string;
-      href: string;
-      cta: string;
-      tone: "brand" | "mint" | "ink";
-    }> = [];
-    if (inviteCount > 0) {
-      actions.push({
-        title: t("home.invitesPending", { n: inviteCount }),
-        description: t("home.invitesDesc"),
-        href: "/app/invitations",
-        cta: t("invite.accept"),
-        tone: "mint",
-      });
-    }
-    if (chatUnread > 0) {
-      actions.push({
-        title: t("home.msgPending", { n: chatUnread }),
-        description: t("home.msgPendingDesc"),
-        href: "/app/chat",
-        cta: t("home.openChatCta"),
-        tone: "brand",
-      });
-    }
-    if (notifUnread > 0) {
-      actions.push({
-        title: t("home.alertsTitle"),
-        description: t("home.alertsDesc"),
-        href: "/app/notifications",
-        cta: t("home.openAlerts"),
-        tone: "ink",
-      });
-    }
-    return actions.slice(0, 2);
-  }, [chatUnread, inviteCount, notifUnread, t]);
-
   const completeStep = (key: OnboardingKey) => {
     markChecklist(key);
     setChecklist(loadChecklist());
@@ -239,38 +198,6 @@ export default function PortalHomePage() {
 
   return (
     <div className="relative space-y-5 pb-20">
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <SectionLabel>{t("home.circleActivity")}</SectionLabel>
-          <Link href="/app/chat" className="text-xs font-bold text-brand-600">
-            {t("common.seeAll")}
-          </Link>
-        </div>
-        {circleActivity.loading && activityItems.length === 0 ? (
-          <p className="text-sm text-ink-mute">{t("common.loading")}</p>
-        ) : activityItems.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-ink/10 bg-surface-sunken/40 px-4 py-3">
-            <p className="text-sm text-ink-mute">
-              {t("home.circleActivityEmpty")}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Link href="/app/chat" className="text-xs font-bold text-brand-600">
-                {t("home.openChat")}
-              </Link>
-              <span className="text-ink-faint">·</span>
-              <Link
-                href="/app/contributions#create"
-                className="text-xs font-bold text-brand-600"
-              >
-                {t("home.createPot")}
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <LiveActivityList items={activityItems} showRoomLink compact />
-        )}
-      </section>
-
       <MobileHero>
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -307,49 +234,13 @@ export default function PortalHomePage() {
             className="[&_span]:bg-white/15 [&_span]:text-white"
           />
         </div>
-      </MobileHero>
-
-      <div className="flex flex-wrap gap-2">
-        <QuickChip href="/app/chat">{t("nav.messages")}</QuickChip>
-        <QuickChip href="/app/tontines">{t("nav.tontines")}</QuickChip>
-        <QuickChip href="/app/contributions">{t("nav.contributions")}</QuickChip>
-        <QuickChip href="/app/history">{t("nav.history")}</QuickChip>
-      </div>
-
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-2xl border border-ink/[0.06] bg-surface p-3.5 shadow-soft">
-          <p className="text-xl font-bold text-brand-600">{created.length}</p>
-          <p className="text-[11px] font-semibold text-ink-mute">
-            {t("history.sectionCreated")}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-ink/[0.06] bg-surface p-3.5 shadow-soft">
-          <p className="text-xl font-bold text-mint-600">
-            {participated.length}
-          </p>
-          <p className="text-[11px] font-semibold text-ink-mute">
-            {t("history.sectionJoined")}
-          </p>
-        </div>
-        <Link
-          href="/app/tontines"
-          className="rounded-2xl border border-ink/[0.06] bg-surface p-3.5 shadow-soft"
-        >
-          <p className="text-xl font-bold text-ink">{tontineCount}</p>
-          <p className="text-[11px] font-semibold text-ink-mute">
-            {t("nav.tontines")}
-          </p>
-        </Link>
         <Link
           href="/app/chat"
-          className="rounded-2xl border border-ink/[0.06] bg-surface p-3.5 shadow-soft"
+          className="mt-4 inline-flex rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-brand-700"
         >
-          <p className="text-xl font-bold text-ink">{chatUnread}</p>
-          <p className="text-[11px] font-semibold text-ink-mute">
-            {t("nav.messages")}
-          </p>
+          {t("home.openChat")}
         </Link>
-      </section>
+      </MobileHero>
 
       {pendingInvites.length > 0 ? (
         <section className="space-y-2">
@@ -385,16 +276,103 @@ export default function PortalHomePage() {
         </section>
       ) : null}
 
-      {nextActions.length > 0 ? (
-        <section className="space-y-2">
-          <SectionLabel>{t("home.todoNow")}</SectionLabel>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {nextActions.map((a) => (
-              <NextStepCard key={a.href + a.title} {...a} />
-            ))}
+      {showOnboarding ? (
+        <section className="rounded-2xl border border-ink/[0.06] bg-surface p-4 shadow-soft">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h2 className="font-display text-base font-bold text-ink">
+                {t("home.firstSteps")}
+              </h2>
+              <p className="text-xs text-ink-mute">
+                {t("home.onboardingHint", {
+                  done: progress.done,
+                  total: progress.total,
+                })}
+              </p>
+            </div>
+            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-sunken">
+              <div
+                className="h-full rounded-full bg-brand-500"
+                style={{ width: `${progress.pct}%` }}
+              />
+            </div>
           </div>
+          <ul className="mt-3 space-y-1.5">
+            {ONBOARDING_STEPS.map((step) => {
+              const done = checklist[step.key];
+              return (
+                <li key={step.key}>
+                  <Link
+                    href={step.href}
+                    onClick={() => completeStep(step.key)}
+                    className={cx(
+                      "flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm",
+                      done
+                        ? "bg-mint-50 text-mint-900"
+                        : "bg-surface-sunken/50 text-ink",
+                    )}
+                  >
+                    <span className="font-medium">
+                      {done ? "✓ " : "○ "}
+                      {t(`home.${step.titleKey}`)}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       ) : null}
+
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <SectionLabel>{t("nav.messages")}</SectionLabel>
+          <Link href="/app/chat" className="text-xs font-bold text-brand-600">
+            {t("common.seeAll")}
+          </Link>
+        </div>
+        {rooms.length === 0 ? (
+          <p className="text-sm text-ink-mute">{t("home.noRooms")}</p>
+        ) : (
+          <ul className="space-y-2">
+            {rooms.map((r) => {
+              const label =
+                r.name ?? t("home.roomFallback", { id: r.id.slice(0, 8) });
+              return (
+                <li key={r.id}>
+                  <Link
+                    href={`/app/chat?room=${r.id}`}
+                    className="flex items-center gap-3 rounded-2xl border border-ink/[0.06] bg-surface px-3.5 py-3 shadow-soft"
+                  >
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-xs font-bold text-white">
+                      {initialsFrom(label) || "C"}
+                    </span>
+                    <p className="min-w-0 flex-1 truncate font-semibold text-ink">
+                      {label}
+                    </p>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <SectionLabel>{t("home.circleActivity")}</SectionLabel>
+          <Link href="/app/chat" className="text-xs font-bold text-brand-600">
+            {t("common.seeAll")}
+          </Link>
+        </div>
+        {circleActivity.loading && activityItems.length === 0 ? (
+          <p className="text-sm text-ink-mute">{t("common.loading")}</p>
+        ) : activityItems.length === 0 ? (
+          <p className="text-sm text-ink-mute">{t("home.circleActivityEmpty")}</p>
+        ) : (
+          <LiveActivityList items={activityItems} showRoomLink compact />
+        )}
+      </section>
 
       <section className="space-y-2">
         <div className="flex items-center justify-between">
@@ -466,86 +444,6 @@ export default function PortalHomePage() {
       ) : null}
 
       <ViralGrowthCard engagement={engagement.data} />
-
-      {showOnboarding ? (
-        <section className="rounded-2xl border border-ink/[0.06] bg-surface p-4 shadow-soft">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <h2 className="font-display text-base font-bold text-ink">
-                {t("home.firstSteps")}
-              </h2>
-              <p className="text-xs text-ink-mute">
-                {t("home.onboardingHint", {
-                  done: progress.done,
-                  total: progress.total,
-                })}
-              </p>
-            </div>
-            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-sunken">
-              <div
-                className="h-full rounded-full bg-brand-500"
-                style={{ width: `${progress.pct}%` }}
-              />
-            </div>
-          </div>
-          <ul className="mt-3 space-y-1.5">
-            {ONBOARDING_STEPS.map((step) => {
-              const done = checklist[step.key];
-              return (
-                <li key={step.key}>
-                  <Link
-                    href={step.href}
-                    onClick={() => completeStep(step.key)}
-                    className={cx(
-                      "flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm",
-                      done
-                        ? "bg-mint-50 text-mint-900"
-                        : "bg-surface-sunken/50 text-ink",
-                    )}
-                  >
-                    <span className="font-medium">
-                      {done ? "✓ " : "○ "}
-                      {t(`home.${step.titleKey}`)}
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
-
-      {rooms.length > 0 ? (
-        <section className="space-y-2">
-          <div className="flex items-center justify-between">
-            <SectionLabel>{t("nav.messages")}</SectionLabel>
-            <Link href="/app/chat" className="text-xs font-bold text-brand-600">
-              {t("common.seeAll")}
-            </Link>
-          </div>
-          <ul className="space-y-2">
-            {rooms.map((r) => {
-              const label =
-                r.name ?? t("home.roomFallback", { id: r.id.slice(0, 8) });
-              return (
-                <li key={r.id}>
-                  <Link
-                    href={`/app/chat?room=${r.id}`}
-                    className="flex items-center gap-3 rounded-2xl border border-ink/[0.06] bg-surface px-3.5 py-3 shadow-soft"
-                  >
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-xs font-bold text-white">
-                      {initialsFrom(label) || "C"}
-                    </span>
-                    <p className="min-w-0 flex-1 truncate font-semibold text-ink">
-                      {label}
-                    </p>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
 
       <TabFab href="/app/contributions#create" label={t("home.createShort")} />
     </div>

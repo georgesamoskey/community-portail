@@ -10,8 +10,10 @@ import { useI18n } from "@/lib/i18n/context";
 import { formatDateTime } from "@/lib/ui";
 
 type InvitePreview = {
+  kind?: string;
   id?: string;
   contributionId?: string;
+  tontineId?: string;
   contributionTitle?: string;
   inviterName?: string;
   message?: string;
@@ -115,7 +117,8 @@ export default function InviteTokenPage() {
         {preview && !err && (
           <div className="mt-6 space-y-3 text-center">
             <h1 className="font-display text-xl font-bold text-ink">
-              {preview.contributionTitle ?? t("invite.pot")}
+              {preview.contributionTitle ??
+                (preview.kind === "tontine" ? t("invite.circle") : t("invite.pot"))}
             </h1>
             {preview.inviterName ? (
               <p className="text-sm text-ink-mute">
@@ -144,7 +147,14 @@ export default function InviteTokenPage() {
                 >
                   {busy ? t("invite.accepting") : t("invite.accept")}
                 </button>
-                {preview.contributionId ? (
+                {preview.kind === "tontine" && preview.tontineId ? (
+                  <Link
+                    href={`/app/tontines/${preview.tontineId}`}
+                    className="text-sm font-semibold text-brand-600"
+                  >
+                    {t("invite.seeTontine")}
+                  </Link>
+                ) : preview.contributionId ? (
                   <Link
                     href={`/app/contributions/${preview.contributionId}`}
                     className="text-sm font-semibold text-brand-600"

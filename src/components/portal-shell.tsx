@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { cx } from "@/lib/cx";
-import { hasPermission, Permission } from "@/lib/portal-permissions";
+import { hasPermission, Permission, type PermissionId } from "@/lib/portal-permissions";
 import { SignOutButton } from "@/components/sign-out-button";
 import { useBff } from "@/lib/use-bff";
 import { initialsFrom } from "@/lib/portal-api";
@@ -59,27 +59,6 @@ function IconChat({ className }: { className?: string }) {
   );
 }
 
-function IconHistory({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 8v5l3 2"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M3.5 12a8.5 8.5 0 1 0 2.2-5.7L3.5 8.5"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function IconGroups({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -93,6 +72,25 @@ function IconGroups({ className }: { className?: string }) {
       />
       <path
         d="M14 14c1.8 0 3.4.7 4.5 2.5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function IconPot({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M7.5 10h9L15 19H9L7.5 10Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9.5 10V8a2.5 2.5 0 0 1 5 0v2"
         stroke="currentColor"
         strokeWidth="1.75"
         strokeLinecap="round"
@@ -150,27 +148,51 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const PRIMARY_NAV = [
     { href: "/app", label: t("nav.home") },
     { href: "/app/chat", label: t("nav.messages") },
-    { href: "/app/history", label: t("nav.history") },
     { href: "/app/tontines", label: t("nav.tontines") },
     { href: "/app/contributions", label: t("nav.contributions") },
   ];
 
-  const MORE_NAV = [
-    { href: "/app/discover", label: t("nav.discover") },
-    { href: "/app/invitations", label: t("nav.invitations") },
-    { href: "/app/engagement", label: t("nav.engagement") },
-    { href: "/app/referral", label: t("nav.referral") },
-    { href: "/app/support", label: t("nav.support") },
-    { href: "/app/reports", label: t("nav.reports") },
-    { href: "/app/notifications", label: t("nav.notifications") },
+  const MORE_GROUPS: Array<{
+    title: string;
+    items: Array<{ href: string; label: string; require?: PermissionId }>;
+  }> = [
     {
-      href: "/app/payments",
-      label: t("nav.payments"),
-      require: Permission.PORTAL_PAYMENTS,
+      title: t("nav.groupCircle"),
+      items: [
+        { href: "/app/discover", label: t("nav.discover") },
+        { href: "/app/invitations", label: t("nav.invitations") },
+        { href: "/app/notifications", label: t("nav.notifications") },
+        { href: "/app/engagement", label: t("nav.engagement") },
+        { href: "/app/referral", label: t("nav.referral") },
+      ],
     },
-    { href: "/app/contributions", label: t("nav.contributions") },
-    { href: "/app/profile", label: t("nav.profile") },
+    {
+      title: t("nav.groupMoney"),
+      items: [
+        { href: "/app/history", label: t("nav.history") },
+        {
+          href: "/app/payments",
+          label: t("nav.payments"),
+          require: Permission.PORTAL_PAYMENTS,
+        },
+        { href: "/app/reports", label: t("nav.reports") },
+      ],
+    },
+    {
+      title: t("nav.groupAccount"),
+      items: [
+        { href: "/app/profile", label: t("nav.profile") },
+        { href: "/app/support", label: t("nav.support") },
+      ],
+    },
   ];
+
+  const visibleGroups = MORE_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter(
+      (item) => !item.require || hasPermission(roles, item.require),
+    ),
+  })).filter((group) => group.items.length > 0);
 
   const MOBILE_DOCK: Array<{
     href: string;
@@ -179,8 +201,8 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   }> = [
     { href: "/app", label: t("nav.home"), Icon: IconHome },
     { href: "/app/chat", label: t("nav.messages"), Icon: IconChat },
-    { href: "/app/history", label: t("nav.history"), Icon: IconHistory },
     { href: "/app/tontines", label: t("nav.tontines"), Icon: IconGroups },
+    { href: "/app/contributions", label: t("nav.contributions"), Icon: IconPot },
     { href: "/app/profile", label: t("nav.profile"), Icon: IconPerson },
   ];
 
@@ -205,7 +227,9 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const isActive = (href: string) =>
     href === "/app" ? pathname === "/app" : pathname.startsWith(href);
 
-  const moreActive = MORE_NAV.some((item) => isActive(item.href));
+  const moreActive = visibleGroups.some((group) =>
+    group.items.some((item) => isActive(item.href)),
+  );
   const moreInviteBadge = unreadCount > 0;
 
   useEffect(() => {
@@ -351,34 +375,36 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
               ) : null}
             </button>
             {moreOpen ? (
-              <div className="absolute left-0 top-full z-[80] mt-1.5 min-w-[12rem] overflow-hidden rounded-2xl border border-ink/[0.08] bg-surface py-1 shadow-lift">
-                {MORE_NAV.map((item) => {
-                  const active = isActive(item.href);
-                  const locked =
-                    "require" in item &&
-                    item.require &&
-                    !hasPermission(roles, item.require);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cx(
-                        "flex items-center justify-between px-3.5 py-2.5 text-sm font-semibold transition",
-                        active
-                          ? "bg-brand-50 text-brand-700"
-                          : "text-ink-soft hover:bg-ink/[0.04] hover:text-ink",
-                        locked && !active && "opacity-50",
-                      )}
-                    >
-                      {item.label}
-                      {item.href === "/app/notifications" && unreadCount > 0 ? (
-                        <span className="rounded-md bg-brand-500 px-1.5 text-[10px] font-bold text-white">
-                          {unreadCount > 99 ? "99+" : unreadCount}
-                        </span>
-                      ) : null}
-                    </Link>
-                  );
-                })}
+              <div className="absolute left-0 top-full z-[80] mt-1.5 min-w-[14rem] overflow-hidden rounded-2xl border border-ink/[0.08] bg-surface py-1 shadow-lift">
+                {visibleGroups.map((group) => (
+                  <div key={group.title} className="py-1">
+                    <p className="px-3.5 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wide text-ink-faint">
+                      {group.title}
+                    </p>
+                    {group.items.map((item) => {
+                      const active = isActive(item.href);
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={cx(
+                            "flex items-center justify-between px-3.5 py-2.5 text-sm font-semibold transition",
+                            active
+                              ? "bg-brand-50 text-brand-700"
+                              : "text-ink-soft hover:bg-ink/[0.04] hover:text-ink",
+                          )}
+                        >
+                          {item.label}
+                          {item.href === "/app/notifications" && unreadCount > 0 ? (
+                            <span className="rounded-md bg-brand-500 px-1.5 text-[10px] font-bold text-white">
+                              {unreadCount > 99 ? "99+" : unreadCount}
+                            </span>
+                          ) : null}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
             ) : null}
           </div>
@@ -499,26 +525,32 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           <p className="text-xs font-semibold text-ink-mute">{t("native.theme")}</p>
           <ThemeSwitcher compact />
         </div>
+        {visibleGroups.map((group) => (
+          <div key={group.title} className="mb-3">
+            <p className="px-1 pb-1 text-[11px] font-bold uppercase tracking-wide text-ink-mute">
+              {group.title}
+            </p>
+            <div className="divide-y divide-ink/[0.05] rounded-2xl border border-ink/[0.06] bg-surface">
+              {group.items.map((item) => (
+                <SheetLink
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  badge={
+                    item.href === "/app/notifications" ? unreadCount : undefined
+                  }
+                  onNavigate={() => setSheetOpen(false)}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
         <div className="divide-y divide-ink/[0.05] rounded-2xl border border-ink/[0.06] bg-surface">
           <SheetLink
             href="/app/profile/native"
             label={t("native.labTitle")}
             onNavigate={() => setSheetOpen(false)}
           />
-          {MORE_NAV.filter((item) => {
-            if (!("require" in item) || !item.require) return true;
-            return hasPermission(roles, item.require);
-          }).map((item) => (
-            <SheetLink
-              key={item.href}
-              href={item.href}
-              label={item.label}
-              badge={
-                item.href === "/app/notifications" ? unreadCount : undefined
-              }
-              onNavigate={() => setSheetOpen(false)}
-            />
-          ))}
         </div>
         <div className="mt-3 px-1 pb-2">
           <SignOutButton label={t("nav.logout")} />

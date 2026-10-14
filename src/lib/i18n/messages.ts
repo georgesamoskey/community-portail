@@ -31,7 +31,10 @@ export const messages = {
       profile: "Profil",
       more: "Plus",
       logout: "Sortir",
-      mainNav: "Navigation principale"
+      mainNav: "Navigation principale",
+      groupCircle: "Cercle",
+      groupMoney: "Argent",
+      groupAccount: "Compte"
     },
     common: {
       loading: "Chargement…",
@@ -282,7 +285,18 @@ export const messages = {
       createAccount: "Créer un compte",
       alreadyMember: "Déjà membre — se connecter",
       hint: "Créez un compte ou connectez-vous pour rejoindre ce groupe.",
-      back: "Retour Akiba One"
+      back: "Retour Akiba One",
+      shareHintPot: "Envoyez ce lien sur WhatsApp. La personne l’ouvre et rejoint la cagnotte.",
+      shareHintTontine: "Envoyez ce lien sur WhatsApp. La personne l’ouvre et rejoint la tontine.",
+      copy: "Copier le lien",
+      whatsapp: "WhatsApp",
+      copied: "Lien copié",
+      otherEmail: "Inviter par e-mail ou téléphone",
+      otherMember: "Inviter quelqu’un déjà inscrit",
+      seeTontine: "Voir la tontine →",
+      circle: "Tontine",
+      shareText: "Rejoins « {{title}} » sur Akiba One : {{url}}",
+      preparing: "Préparation du lien…"
     },
     tontines: {
       title: "Mes tontines",
@@ -998,7 +1012,10 @@ export const messages = {
       profile: "Profile",
       more: "More",
       logout: "Sign out",
-      mainNav: "Main navigation"
+      mainNav: "Main navigation",
+      groupCircle: "Circle",
+      groupMoney: "Money",
+      groupAccount: "Account"
     },
     common: {
       loading: "Loading…",
@@ -1246,7 +1263,18 @@ export const messages = {
       createAccount: "Create an account",
       alreadyMember: "Already a member — sign in",
       hint: "Create an account or sign in to join this group.",
-      back: "Back Akiba One"
+      back: "Back Akiba One",
+      shareHintPot: "Send this link on WhatsApp. They open it and join the pot.",
+      shareHintTontine: "Send this link on WhatsApp. They open it and join the tontine.",
+      copy: "Copy link",
+      whatsapp: "WhatsApp",
+      copied: "Link copied",
+      otherEmail: "Invite by email or phone",
+      otherMember: "Invite someone who already has an account",
+      seeTontine: "See the tontine →",
+      circle: "Tontine",
+      shareText: "Join « {{title}} » on Akiba One: {{url}}",
+      preparing: "Preparing the link…"
     },
     tontines: {
       title: "My tontines",
@@ -1937,13 +1965,17 @@ export const messages = {
       invitations: "Ubutumire",
       engagement: "Ukugira uruhare",
       referral: "Gutumira",
+      support: "Ubufasha",
       reports: "Raporo",
       notifications: "Amatangazo",
       payments: "Kwishyura",
       profile: "Umwirondoro",
       more: "Ibindi",
       logout: "Sohoka",
-      mainNav: "Inzira nyamukuru"
+      mainNav: "Inzira nyamukuru",
+      groupCircle: "Umuryango",
+      groupMoney: "Amafaranga",
+      groupAccount: "Konti"
     },
     common: {
       loading: "Birategerezwa…",
@@ -2191,7 +2223,18 @@ export const messages = {
       createAccount: "Rema konti",
       alreadyMember: "Usanzwe uri umwe — injira",
       hint: "Rema konti canke winjire kugira ngo winjire muri uyu mugwi.",
-      back: "Subira kuri Akiba One"
+      back: "Subira kuri Akiba One",
+      shareHintPot: "Rungika uyu murongo kuri WhatsApp. Umuntu arwugurura hanyuma yinjira mu kigega.",
+      shareHintTontine: "Rungika uyu murongo kuri WhatsApp. Umuntu arwugurura hanyuma yinjira mu tontine.",
+      copy: "Kopa uruja n'uruza",
+      whatsapp: "WhatsApp",
+      copied: "Uruja n'uruza rwakopiwe",
+      otherEmail: "Gutumira biciye kuri imeyili canke telefone",
+      otherMember: "Gutumira uwufise konti",
+      seeTontine: "Raba tontine →",
+      circle: "Tontine",
+      shareText: "Injira « {{title}} » kuri Akiba One : {{url}}",
+      preparing: "Gutegura uruja n'uruza…"
     },
     tontines: {
       title: "My tontines",
@@ -2881,13 +2924,17 @@ export const messages = {
       invitations: "Mialiko",
       engagement: "Ushiriki",
       referral: "Rufaa",
+      support: "Msaada",
       reports: "Ripoti",
       notifications: "Arifa",
       payments: "Malipo",
       profile: "Wasifu",
       more: "Zaidi",
       logout: "Toka",
-      mainNav: "Urambazaji mkuu"
+      mainNav: "Urambazaji mkuu",
+      groupCircle: "Duara",
+      groupMoney: "Pesa",
+      groupAccount: "Akaunti"
     },
     common: {
       loading: "Inapakia…",
@@ -3135,7 +3182,18 @@ export const messages = {
       createAccount: "Unda akaunti",
       alreadyMember: "Tayari wewe ni mwanachama — ingia",
       hint: "Unda akaunti au ingia ili kujiunga na kikundi hiki.",
-      back: "Rudi Akiba One"
+      back: "Rudi Akiba One",
+      shareHintPot: "Tuma kiungo hiki kwa WhatsApp. Mtu anakifungua na kujiunga na mchango.",
+      shareHintTontine: "Tuma kiungo hiki kwa WhatsApp. Mtu anakifungua na kujiunga na tontine.",
+      copy: "Nakili kiungo",
+      whatsapp: "WhatsApp",
+      copied: "Kiungo kimenakiliwa",
+      otherEmail: "Alika kwa barua pepe au simu",
+      otherMember: "Alika mtu aliye na akaunti",
+      seeTontine: "Ona tontine →",
+      circle: "Tontine",
+      shareText: "Jiunge « {{title}} » kwenye Akiba One: {{url}}",
+      preparing: "Inaandaa kiungo…"
     },
     tontines: {
       title: "My tontines",
@@ -3832,7 +3890,10 @@ export const messages = {
       profile: "Profil",
       more: "Mosusu",
       logout: "Kobima",
-      mainNav: "Botamboli ya liboso"
+      mainNav: "Botamboli ya liboso",
+      groupCircle: "Lisanga",
+      groupMoney: "Mbongo",
+      groupAccount: "Compte"
     },
     common: {
       loading: "Ezali kokota…",
@@ -4079,7 +4140,18 @@ export const messages = {
       createAccount: "Kosala compte",
       alreadyMember: "Ozali moto — kota",
       hint: "Sala compte to kota mpo okota na lisanga oyo.",
-      back: "Zonga Akiba One"
+      back: "Zonga Akiba One",
+      shareHintPot: "Tinda lien oyo na WhatsApp. Moto akofungola yango mpe akokota na likelemba.",
+      shareHintTontine: "Tinda lien oyo na WhatsApp. Moto akofungola yango mpe akokota na tontine.",
+      copy: "Kokopa lien",
+      whatsapp: "WhatsApp",
+      copied: "Lien ekopiama",
+      otherEmail: "Kobenga na email to telefone",
+      otherMember: "Kobenga moto oyo azali na compte",
+      seeTontine: "Tala tontine →",
+      circle: "Tontine",
+      shareText: "Kota na « {{title}} » na Akiba One : {{url}}",
+      preparing: "Kobongisa lien…"
     },
     tontines: {
       title: "Batontine na ngai",

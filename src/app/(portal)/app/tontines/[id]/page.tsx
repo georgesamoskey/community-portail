@@ -28,6 +28,7 @@ import { MemberTrustBadge } from "@/components/member-trust-badge";
 import { useTrustBatch } from "@/lib/use-trust-batch";
 import { memberDisplayName } from "@/lib/member-display";
 import { MmPayFields } from "@/components/mm-pay-fields";
+import { InviteLinkPanel } from "@/components/invite-link-panel";
 import {
   marketDial,
   providerLabel,
@@ -77,6 +78,7 @@ type TontineDetail = {
   orderStrategy?: string;
   inviteCode?: string;
   joinCode?: string;
+  invitationCode?: string | null;
   chatRoomId?: string | null;
   memberships?: Member[];
   members?: Member[];
@@ -205,6 +207,7 @@ export default function TontineDetailPage() {
   );
 
   const [inviteUserId, setInviteUserId] = useState("");
+  const [portalOrigin, setPortalOrigin] = useState("");
   const [searchQ, setSearchQ] = useState("");
   const [searchHits, setSearchHits] = useState<
     Array<{ id?: string; firstName?: string; lastName?: string; email?: string }>
@@ -243,6 +246,10 @@ export default function TontineDetailPage() {
   const [welfareAmount, setWelfareAmount] = useState("");
   const [welfareNote, setWelfareNote] = useState("");
   const dial = payMarket.country ? marketDial(payMarket.country) : "";
+
+  useEffect(() => {
+    setPortalOrigin(window.location.origin);
+  }, []);
 
   useEffect(() => {
     const keys = providerList.map(providerOptionKey).filter(Boolean);
@@ -595,10 +602,84 @@ export default function TontineDetailPage() {
             </Badge>
             {ton.frequency ? <Badge tone="info">{ton.frequency}</Badge> : null}
             {ton.seats != null ? <Badge>{ton.seats} places</Badge> : null}
-            {(ton.inviteCode || ton.joinCode) && (
-              <Badge tone="info">{t("common.code")} : {ton.inviteCode ?? ton.joinCode}</Badge>
+            {(ton.invitationCode || ton.inviteCode || ton.joinCode) && (
+              <Badge tone="info">
+                {t("common.code")} : {ton.invitationCode ?? ton.inviteCode ?? ton.joinCode}
+              </Badge>
             )}
           </div>
+          {(() => {
+            const code = ton.invitationCode ?? ton.inviteCode ?? ton.joinCode ?? "";
+            const open =
+              !ton.status || ton.status === "recruiting" || ton.status === "draft";
+            if (!code || !open || seatsFull) return null;
+            const inviteUrl = portalOrigin ? `${portalOrigin}/invite/${code}` : null;
+            const title = ton.title ?? ton.name ?? t("invite.circle");
+            return (
+              <Panel title={t("invite.title")}>
+                <InviteLinkPanel
+                  hint={t("invite.shareHintTontine")}
+                  url={inviteUrl}
+                  busy={!inviteUrl}
+                  shareText={t("invite.shareText", {
+                    title,
+                    url: inviteUrl ?? "",
+                  })}
+                  otherLabel={t("invite.otherMember")}
+                >
+                  <Field label={t("tontines.searchMember")}>
+                    <div className="flex gap-2">
+                      <input
+                        className={inputClass}
+                        value={searchQ}
+                        onChange={(e) => setSearchQ(e.target.value)}
+                        placeholder={t("tontines.searchPlaceholder")}
+                      />
+                      <Btn
+                        variant="secondary"
+                        disabled={!searchQ.trim() || action.busy}
+                        onClick={searchUsers}
+                      >
+                        {t("tontines.searchBtn")}
+                      </Btn>
+                    </div>
+                  </Field>
+                  {searchHits.length > 0 && (
+                    <ul className="max-h-40 space-y-1 overflow-auto text-sm">
+                      {searchHits.map((u) => (
+                        <li key={u.id}>
+                          <button
+                            type="button"
+                            className="w-full rounded-lg px-2 py-1.5 text-left hover:bg-brand-50"
+                            onClick={() => {
+                              if (u.id) setInviteUserId(u.id);
+                            }}
+                          >
+                            {`${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() ||
+                              u.email ||
+                              u.id}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <Field label={t("tontines.userIdInvite")}>
+                    <input
+                      className={inputClass}
+                      value={inviteUserId}
+                      onChange={(e) => setInviteUserId(e.target.value)}
+                    />
+                  </Field>
+                  <Btn
+                    disabled={!inviteUserId || action.busy || seatsFull}
+                    onClick={invite}
+                  >
+                    {t("common.invite")}
+                  </Btn>
+                </InviteLinkPanel>
+              </Panel>
+            );
+          })()}
 
           {ton.type === "asca" && (
             <Panel title="Fonds ASCA">
@@ -1243,58 +1324,6 @@ export default function TontineDetailPage() {
                   })}
                 </ul>
               )}
-
-              <div className="mt-4 space-y-3 border-t border-brand-100 pt-4">
-                <Field label={t("tontines.searchMember")}>
-                  <div className="flex gap-2">
-                    <input
-                      className={inputClass}
-                      value={searchQ}
-                      onChange={(e) => setSearchQ(e.target.value)}
-                      placeholder={t("tontines.searchPlaceholder")}
-                    />
-                    <Btn
-                      variant="secondary"
-                      disabled={!searchQ.trim() || action.busy}
-                      onClick={searchUsers}
-                    >
-                      {t("tontines.searchBtn")}
-                    </Btn>
-                  </div>
-                </Field>
-                {searchHits.length > 0 && (
-                  <ul className="max-h-40 space-y-1 overflow-auto text-sm">
-                    {searchHits.map((u) => (
-                      <li key={u.id}>
-                        <button
-                          type="button"
-                          className="w-full rounded-lg px-2 py-1.5 text-left hover:bg-brand-50"
-                          onClick={() => {
-                            if (u.id) setInviteUserId(u.id);
-                          }}
-                        >
-                          {`${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() ||
-                            u.email ||
-                            u.id}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <Field label={t("tontines.userIdInvite")}>
-                  <input
-                    className={inputClass}
-                    value={inviteUserId}
-                    onChange={(e) => setInviteUserId(e.target.value)}
-                  />
-                </Field>
-                <Btn
-                  disabled={!inviteUserId || action.busy || seatsFull}
-                  onClick={invite}
-                >
-                  {t("common.invite")}
-                </Btn>
-              </div>
             </Panel>
             </div>
           )}
