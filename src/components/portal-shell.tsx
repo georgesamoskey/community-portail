@@ -26,94 +26,14 @@ import {
 import { NetworkQualityChip, ThemeSwitcher } from "@/components/native-plus";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { haptic } from "@/lib/native";
-
-function IconHome({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function IconChat({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M7 18.5 4 21V7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v8a2.5 2.5 0 0 1-2.5 2.5H7Z"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M8.5 10h7M8.5 13.5h4.5"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function IconGroups({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.75" />
-      <circle cx="17" cy="9" r="2.5" stroke="currentColor" strokeWidth="1.75" />
-      <path
-        d="M3.5 18.5c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-      />
-      <path
-        d="M14 14c1.8 0 3.4.7 4.5 2.5"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function IconPot({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M7.5 10h9L15 19H9L7.5 10Z"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M9.5 10V8a2.5 2.5 0 0 1 5 0v2"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function IconPerson({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="8" r="3.25" stroke="currentColor" strokeWidth="1.75" />
-      <path
-        d="M5 19.5c1.2-3.4 3.8-5 7-5s5.8 1.6 7 5"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-type DockIcon = (props: { className?: string }) => React.ReactNode;
+import {
+  IconChat,
+  IconGroups,
+  IconHistory,
+  IconHome,
+  IconPerson,
+  type DockIcon,
+} from "@/components/portal-dock-icons";
 
 export function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -148,51 +68,33 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const PRIMARY_NAV = [
     { href: "/app", label: t("nav.home") },
     { href: "/app/chat", label: t("nav.messages") },
+    { href: "/app/history", label: t("nav.history") },
     { href: "/app/tontines", label: t("nav.tontines") },
     { href: "/app/contributions", label: t("nav.contributions") },
   ];
 
-  const MORE_GROUPS: Array<{
-    title: string;
-    items: Array<{ href: string; label: string; require?: PermissionId }>;
+  const MORE_NAV: Array<{
+    href: string;
+    label: string;
+    require?: PermissionId;
   }> = [
+    { href: "/app/discover", label: t("nav.discover") },
+    { href: "/app/invitations", label: t("nav.invitations") },
+    { href: "/app/notifications", label: t("nav.notifications") },
+    { href: "/app/engagement", label: t("nav.engagement") },
+    { href: "/app/referral", label: t("nav.referral") },
     {
-      title: t("nav.groupCircle"),
-      items: [
-        { href: "/app/discover", label: t("nav.discover") },
-        { href: "/app/invitations", label: t("nav.invitations") },
-        { href: "/app/notifications", label: t("nav.notifications") },
-        { href: "/app/engagement", label: t("nav.engagement") },
-        { href: "/app/referral", label: t("nav.referral") },
-      ],
+      href: "/app/payments",
+      label: t("nav.payments"),
+      require: Permission.PORTAL_PAYMENTS,
     },
-    {
-      title: t("nav.groupMoney"),
-      items: [
-        { href: "/app/history", label: t("nav.history") },
-        {
-          href: "/app/payments",
-          label: t("nav.payments"),
-          require: Permission.PORTAL_PAYMENTS,
-        },
-        { href: "/app/reports", label: t("nav.reports") },
-      ],
-    },
-    {
-      title: t("nav.groupAccount"),
-      items: [
-        { href: "/app/profile", label: t("nav.profile") },
-        { href: "/app/support", label: t("nav.support") },
-      ],
-    },
+    { href: "/app/reports", label: t("nav.reports") },
+    { href: "/app/support", label: t("nav.support") },
   ];
 
-  const visibleGroups = MORE_GROUPS.map((group) => ({
-    ...group,
-    items: group.items.filter(
-      (item) => !item.require || hasPermission(roles, item.require),
-    ),
-  })).filter((group) => group.items.length > 0);
+  const visibleMore = MORE_NAV.filter(
+    (item) => !item.require || hasPermission(roles, item.require),
+  );
 
   const MOBILE_DOCK: Array<{
     href: string;
@@ -201,8 +103,8 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   }> = [
     { href: "/app", label: t("nav.home"), Icon: IconHome },
     { href: "/app/chat", label: t("nav.messages"), Icon: IconChat },
+    { href: "/app/history", label: t("nav.history"), Icon: IconHistory },
     { href: "/app/tontines", label: t("nav.tontines"), Icon: IconGroups },
-    { href: "/app/contributions", label: t("nav.contributions"), Icon: IconPot },
     { href: "/app/profile", label: t("nav.profile"), Icon: IconPerson },
   ];
 
@@ -227,9 +129,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   const isActive = (href: string) =>
     href === "/app" ? pathname === "/app" : pathname.startsWith(href);
 
-  const moreActive = visibleGroups.some((group) =>
-    group.items.some((item) => isActive(item.href)),
-  );
+  const moreActive = visibleMore.some((item) => isActive(item.href));
   const moreInviteBadge = unreadCount > 0;
 
   useEffect(() => {
@@ -375,36 +275,29 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
               ) : null}
             </button>
             {moreOpen ? (
-              <div className="absolute left-0 top-full z-[80] mt-1.5 min-w-[14rem] overflow-hidden rounded-2xl border border-ink/[0.08] bg-surface py-1 shadow-lift">
-                {visibleGroups.map((group) => (
-                  <div key={group.title} className="py-1">
-                    <p className="px-3.5 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wide text-ink-faint">
-                      {group.title}
-                    </p>
-                    {group.items.map((item) => {
-                      const active = isActive(item.href);
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className={cx(
-                            "flex items-center justify-between px-3.5 py-2.5 text-sm font-semibold transition",
-                            active
-                              ? "bg-brand-50 text-brand-700"
-                              : "text-ink-soft hover:bg-ink/[0.04] hover:text-ink",
-                          )}
-                        >
-                          {item.label}
-                          {item.href === "/app/notifications" && unreadCount > 0 ? (
-                            <span className="rounded-md bg-brand-500 px-1.5 text-[10px] font-bold text-white">
-                              {unreadCount > 99 ? "99+" : unreadCount}
-                            </span>
-                          ) : null}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                ))}
+              <div className="absolute right-0 top-full z-[80] mt-1.5 min-w-[14rem] overflow-hidden rounded-2xl border border-ink/[0.08] bg-surface py-1 shadow-lift">
+                {visibleMore.map((item) => {
+                  const active = isActive(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cx(
+                        "flex items-center justify-between px-3.5 py-2.5 text-sm font-semibold transition",
+                        active
+                          ? "bg-brand-50 text-brand-700"
+                          : "text-ink-soft hover:bg-ink/[0.04] hover:text-ink",
+                      )}
+                    >
+                      {item.label}
+                      {item.href === "/app/notifications" && unreadCount > 0 ? (
+                        <span className="rounded-md bg-brand-500 px-1.5 text-[10px] font-bold text-white">
+                          {unreadCount > 99 ? "99+" : unreadCount}
+                        </span>
+                      ) : null}
+                    </Link>
+                  );
+                })}
               </div>
             ) : null}
           </div>
@@ -525,27 +418,23 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           <p className="text-xs font-semibold text-ink-mute">{t("native.theme")}</p>
           <ThemeSwitcher compact />
         </div>
-        {visibleGroups.map((group) => (
-          <div key={group.title} className="mb-3">
-            <p className="px-1 pb-1 text-[11px] font-bold uppercase tracking-wide text-ink-mute">
-              {group.title}
-            </p>
-            <div className="divide-y divide-ink/[0.05] rounded-2xl border border-ink/[0.06] bg-surface">
-              {group.items.map((item) => (
-                <SheetLink
-                  key={item.href}
-                  href={item.href}
-                  label={item.label}
-                  badge={
-                    item.href === "/app/notifications" ? unreadCount : undefined
-                  }
-                  onNavigate={() => setSheetOpen(false)}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-        <div className="divide-y divide-ink/[0.05] rounded-2xl border border-ink/[0.06] bg-surface">
+        <div className="divide-y divide-ink/[0.05] overflow-hidden rounded-2xl border border-ink/[0.06] bg-surface">
+          <SheetLink
+            href="/app/contributions"
+            label={t("nav.contributions")}
+            onNavigate={() => setSheetOpen(false)}
+          />
+          {visibleMore.map((item) => (
+            <SheetLink
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              badge={
+                item.href === "/app/notifications" ? unreadCount : undefined
+              }
+              onNavigate={() => setSheetOpen(false)}
+            />
+          ))}
           <SheetLink
             href="/app/profile/native"
             label={t("native.labTitle")}

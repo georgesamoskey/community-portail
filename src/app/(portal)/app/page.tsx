@@ -5,13 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { bffFetch } from "@/lib/bff-fetch";
 import { useBff } from "@/lib/use-bff";
-import {
-  initialsFrom,
-  normalizeList,
-  sortRoomsByActivity,
-  type ChatRoom,
-} from "@/lib/portal-api";
-import { cx } from "@/lib/cx";
+import { normalizeList } from "@/lib/portal-api";
 import {
   ONBOARDING_STEPS,
   checklistProgress,
@@ -68,7 +62,6 @@ export default function PortalHomePage() {
     (session?.user?.name ?? session?.user?.preferred_username ?? "là")
       .split(/\s+/)[0] ?? "là";
 
-  const roomsBff = useBff<unknown>("/chat/rooms");
   const unreadChat = useBff<{ count?: number }>("/chat/unread");
   const unreadNotif = useBff<{ count?: number }>("/notifications/unread/count");
   const invitations = useBff<unknown>("/invitations/my-invitations");
@@ -105,14 +98,7 @@ export default function PortalHomePage() {
     () => asBuckets(contributions.data),
     [contributions.data],
   );
-  const myPots = [...created, ...participated].slice(0, 6);
-
-  const rooms = useMemo(() => {
-    const list = Array.isArray(roomsBff.data)
-      ? (roomsBff.data as ChatRoom[])
-      : normalizeList<ChatRoom>(roomsBff.data, ["items", "rooms", "data"]);
-    return sortRoomsByActivity(list).slice(0, 3);
-  }, [roomsBff.data]);
+  const myPots = [...created, ...participated].slice(0, 4);
 
   const pendingInvites = useMemo(() => {
     return normalizeList<{
@@ -233,13 +219,15 @@ export default function PortalHomePage() {
             signals={trustSignals}
             className="[&_span]:bg-white/15 [&_span]:text-white"
           />
+          {chatUnread > 0 ? (
+            <Link
+              href="/app/chat"
+              className="rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-brand-700"
+            >
+              {t("home.openChat")}
+            </Link>
+          ) : null}
         </div>
-        <Link
-          href="/app/chat"
-          className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-white px-4 py-3 text-sm font-bold text-brand-700"
-        >
-          {t("home.openChat")}
-        </Link>
       </MobileHero>
 
       {pendingInvites.length > 0 ? (
@@ -276,88 +264,6 @@ export default function PortalHomePage() {
         </section>
       ) : null}
 
-      {showOnboarding ? (
-        <section className="rounded-2xl border border-ink/[0.06] bg-surface p-4 shadow-soft">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <h2 className="font-display text-base font-bold text-ink">
-                {t("home.firstSteps")}
-              </h2>
-              <p className="text-xs text-ink-mute">
-                {t("home.onboardingHint", {
-                  done: progress.done,
-                  total: progress.total,
-                })}
-              </p>
-            </div>
-            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-sunken">
-              <div
-                className="h-full rounded-full bg-brand-500"
-                style={{ width: `${progress.pct}%` }}
-              />
-            </div>
-          </div>
-          <ul className="mt-3 space-y-1.5">
-            {ONBOARDING_STEPS.map((step) => {
-              const done = checklist[step.key];
-              return (
-                <li key={step.key}>
-                  <Link
-                    href={step.href}
-                    onClick={() => completeStep(step.key)}
-                    className={cx(
-                      "flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm",
-                      done
-                        ? "bg-mint-50 text-mint-900"
-                        : "bg-surface-sunken/50 text-ink",
-                    )}
-                  >
-                    <span className="font-medium">
-                      {done ? "✓ " : "○ "}
-                      {t(`home.${step.titleKey}`)}
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
-
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <SectionLabel>{t("nav.messages")}</SectionLabel>
-          <Link href="/app/chat" className="text-xs font-bold text-brand-600">
-            {t("common.seeAll")}
-          </Link>
-        </div>
-        {rooms.length === 0 ? (
-          <p className="text-sm text-ink-mute">{t("home.noRooms")}</p>
-        ) : (
-          <ul className="space-y-2">
-            {rooms.map((r) => {
-              const label =
-                r.name ?? t("home.roomFallback", { id: r.id.slice(0, 8) });
-              return (
-                <li key={r.id}>
-                  <Link
-                    href={`/app/chat?room=${r.id}`}
-                    className="flex items-center gap-3 rounded-2xl border border-ink/[0.06] bg-surface px-3.5 py-3 shadow-soft"
-                  >
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-xs font-bold text-white">
-                      {initialsFrom(label) || "C"}
-                    </span>
-                    <p className="min-w-0 flex-1 truncate font-semibold text-ink">
-                      {label}
-                    </p>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <SectionLabel>{t("home.circleActivity")}</SectionLabel>
@@ -370,7 +276,7 @@ export default function PortalHomePage() {
         ) : activityItems.length === 0 ? (
           <p className="text-sm text-ink-mute">{t("home.circleActivityEmpty")}</p>
         ) : (
-          <LiveActivityList items={activityItems} showRoomLink compact />
+          <LiveActivityList items={activityItems.slice(0, 4)} showRoomLink compact />
         )}
       </section>
 
@@ -444,6 +350,43 @@ export default function PortalHomePage() {
       ) : null}
 
       <ViralGrowthCard engagement={engagement.data} />
+
+      {showOnboarding ? (
+        <section className="rounded-2xl border border-ink/[0.06] bg-surface p-4 shadow-soft">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h2 className="font-display text-base font-bold text-ink">
+                {t("home.firstSteps")}
+              </h2>
+              <p className="text-xs text-ink-mute">
+                {t("home.onboardingHint", {
+                  done: progress.done,
+                  total: progress.total,
+                })}
+              </p>
+            </div>
+            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-sunken">
+              <div
+                className="h-full rounded-full bg-brand-500"
+                style={{ width: `${progress.pct}%` }}
+              />
+            </div>
+          </div>
+          <ul className="mt-3 space-y-1.5">
+            {ONBOARDING_STEPS.filter((step) => !checklist[step.key]).map((step) => (
+              <li key={step.key}>
+                <Link
+                  href={step.href}
+                  onClick={() => completeStep(step.key)}
+                  className="flex items-center justify-between gap-3 rounded-xl bg-surface-sunken/50 px-3 py-2 text-sm text-ink"
+                >
+                  <span className="font-medium">{t(`home.${step.titleKey}`)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <TabFab href="/app/contributions#create" label={t("home.createShort")} />
     </div>

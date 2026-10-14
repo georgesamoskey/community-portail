@@ -12,7 +12,6 @@ import {
   Panel,
   statusTone,
 } from "@/lib/ui";
-import { TabFab } from "@/components/mobile-iso";
 import { useEffect } from "react";
 import { useI18n } from "@/lib/i18n/context";
 import { useBff } from "@/lib/use-bff";
@@ -338,13 +337,6 @@ export default function ContributionsPage() {
           })}
         </ul>
       )}
-      <TabFab
-        label={t("home.createShort")}
-        onClick={() => {
-          setShowCreate(true);
-          setTab("cagnottes");
-        }}
-      />
     </div>
   );
 }

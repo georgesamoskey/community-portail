@@ -351,13 +351,15 @@ export default function TontinesPage() {
           ))}
         </ul>
       )}
-      <TabFab
-        label={t("home.createShort")}
-        onClick={() => {
-          setShowCreate(true);
-          setShowJoin(false);
-        }}
-      />
+      <div className="md:hidden">
+        <TabFab
+          label={t("home.createShort")}
+          onClick={() => {
+            setShowCreate(true);
+            setShowJoin(false);
+          }}
+        />
+      </div>
     </div>
   );
 }
