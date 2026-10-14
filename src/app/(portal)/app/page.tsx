@@ -236,7 +236,7 @@ export default function PortalHomePage() {
         </div>
         <Link
           href="/app/chat"
-          className="mt-4 inline-flex rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-brand-700"
+          className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-white px-4 py-3 text-sm font-bold text-brand-700"
         >
           {t("home.openChat")}
         </Link>

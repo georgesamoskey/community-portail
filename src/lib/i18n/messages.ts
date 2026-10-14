@@ -296,7 +296,9 @@ export const messages = {
       seeTontine: "Voir la tontine →",
       circle: "Tontine",
       shareText: "Rejoins « {{title}} » sur Akiba One : {{url}}",
-      preparing: "Préparation du lien…"
+      preparing: "Préparation du lien…",
+      ready: "Prêt à envoyer",
+      sendWhatsapp: "Envoyer sur WhatsApp"
     },
     tontines: {
       title: "Mes tontines",
@@ -1274,7 +1276,9 @@ export const messages = {
       seeTontine: "See the tontine →",
       circle: "Tontine",
       shareText: "Join « {{title}} » on Akiba One: {{url}}",
-      preparing: "Preparing the link…"
+      preparing: "Preparing the link…",
+      ready: "Ready to send",
+      sendWhatsapp: "Send on WhatsApp"
     },
     tontines: {
       title: "My tontines",
@@ -2234,7 +2238,9 @@ export const messages = {
       seeTontine: "Raba tontine →",
       circle: "Tontine",
       shareText: "Injira « {{title}} » kuri Akiba One : {{url}}",
-      preparing: "Gutegura uruja n'uruza…"
+      preparing: "Gutegura uruja n'uruza…",
+      ready: "Biteguye gutunganya",
+      sendWhatsapp: "Rungika kuri WhatsApp"
     },
     tontines: {
       title: "My tontines",
@@ -3193,7 +3199,9 @@ export const messages = {
       seeTontine: "Ona tontine →",
       circle: "Tontine",
       shareText: "Jiunge « {{title}} » kwenye Akiba One: {{url}}",
-      preparing: "Inaandaa kiungo…"
+      preparing: "Inaandaa kiungo…",
+      ready: "Tayari kutuma",
+      sendWhatsapp: "Tuma kwa WhatsApp"
     },
     tontines: {
       title: "My tontines",
@@ -4151,7 +4159,9 @@ export const messages = {
       seeTontine: "Tala tontine →",
       circle: "Tontine",
       shareText: "Kota na « {{title}} » na Akiba One : {{url}}",
-      preparing: "Kobongisa lien…"
+      preparing: "Kobongisa lien…",
+      ready: "Ekoki kotindama",
+      sendWhatsapp: "Tinda na WhatsApp"
     },
     tontines: {
       title: "Batontine na ngai",
