@@ -1,13 +1,67 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { SignInButton } from "@/components/sign-in-button";
 import { bffFetch, BffError } from "@/lib/bff-fetch";
 import { useI18n } from "@/lib/i18n/context";
 import { formatDateTime } from "@/lib/ui";
+
+function parseInviteBody(text: string): InviteAcceptBody {
+  if (!text) return {};
+  try {
+    return JSON.parse(text) as InviteAcceptBody;
+  } catch {
+    return {};
+  }
+}
+
+function inviteErrorText(
+  data: InviteAcceptBody,
+  raw: string,
+  fallback: string,
+): string {
+  if (typeof data.message === "string" && data.message) return data.message;
+  if (Array.isArray(data.message) && data.message.length) {
+    return data.message.join(" ");
+  }
+  return raw || fallback;
+}
+
+function openExistingGroup(
+  message: string,
+  preview: InvitePreview | null,
+  push: (href: string) => void,
+): boolean {
+  if (!/déjà/i.test(message)) return false;
+  return openAcceptedGroup({}, preview, push);
+}
+
+function openAcceptedGroup(
+  data: InviteAcceptBody,
+  preview: InvitePreview | null,
+  push: (href: string) => void,
+): boolean {
+  const tontineId = data.tontineId || preview?.tontineId;
+  const contributionId = data.contributionId || preview?.contributionId;
+  if (tontineId) {
+    push(`/app/tontines/${tontineId}`);
+    return true;
+  }
+  if (contributionId) {
+    push(`/app/contributions/${contributionId}`);
+    return true;
+  }
+  return false;
+}
+
+type InviteAcceptBody = {
+  tontineId?: string;
+  contributionId?: string;
+  message?: string | string[];
+};
 
 type InvitePreview = {
   kind?: string;
@@ -24,6 +78,7 @@ type InvitePreview = {
 export default function InviteTokenPage() {
   const params = useParams();
   const token = String(params.token ?? "");
+  const router = useRouter();
   const { data: session, status } = useSession();
   const { t } = useI18n();
   const [preview, setPreview] = useState<InvitePreview | null>(null);
@@ -68,16 +123,23 @@ export default function InviteTokenPage() {
         } catch {
           /* ignore */
         }
-        await fetch(`/api/public/invitations/${encodeURIComponent(token)}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(userId ? { userId } : {}),
-        }).then(async (res) => {
-          if (!res.ok) {
-            const text = await res.text();
-            throw new Error(text || t("common.error"));
-          }
-        });
+        const res = await fetch(
+          `/api/public/invitations/${encodeURIComponent(token)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(userId ? { userId } : {}),
+          },
+        );
+        const text = await res.text();
+        const data = parseInviteBody(text);
+        if (!res.ok) {
+          const message = inviteErrorText(data, text, t("common.error"));
+          if (openExistingGroup(message, preview, router.push)) return;
+          throw new Error(message);
+        }
+        const opened = openAcceptedGroup(data, preview, router.push);
+        if (opened) return;
       } else {
         throw new Error(t("invite.needAuth"));
       }
