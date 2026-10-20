@@ -57,6 +57,9 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "X-DNS-Prefetch-Control", value: "off" },
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "Cross-Origin-Resource-Policy", value: "same-site" },
   {
     key: "Permissions-Policy",
     value: "camera=(self), microphone=(self), geolocation=(), interest-cohort=()",
@@ -65,7 +68,7 @@ const securityHeaders = [
     ? [
         {
           key: "Strict-Transport-Security",
-          value: "max-age=31536000; includeSubDomains",
+          value: "max-age=31536000; includeSubDomains; preload",
         },
       ]
     : []),
@@ -75,13 +78,37 @@ const nextConfig: NextConfig = {
   // Docker / VPS : standalone. Sur Vercel, laisser le runtime natif.
   ...(process.env.VERCEL ? {} : { output: "standalone" as const }),
   poweredByHeader: false,
+  compress: true,
   eslint: { ignoreDuringBuilds: true },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "static-content.pawapay.io",
+        pathname: "/company_logos/**",
+      },
+      {
+        protocol: "https",
+        hostname: "static-content.pawapay.io",
+        pathname: "/country_flags/**",
+      },
+    ],
+  },
 
   async headers() {
     return [
       {
         source: "/:path*",
         headers: securityHeaders,
+      },
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
       },
       {
         source: "/manifest.webmanifest",

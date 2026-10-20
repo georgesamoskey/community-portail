@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPortalAccessJwt } from "@/lib/portal-jwt";
+import {
+  applyBffSecurityHeaders,
+  withUpstreamTimeout,
+} from "@/lib/bff-proxy-security";
 
 /**
  * Préfixes autorisés pour le BFF customer portal.
@@ -113,14 +117,23 @@ async function proxy(
       }
     }
 
-    const res = await fetch(upstream, init);
+    const res = await fetch(upstream, withUpstreamTimeout(init));
     const out = new NextResponse(await res.arrayBuffer(), { status: res.status });
     const outCt = res.headers.get("content-type");
     if (outCt) out.headers.set("content-type", outCt);
+    const outRid = res.headers.get("x-request-id");
+    if (outRid) out.headers.set("x-request-id", outRid);
+    applyBffSecurityHeaders(out.headers);
     return out;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Erreur proxy";
-    return NextResponse.json({ error: msg }, { status: 502 });
+    const err = e as Error & { name?: string };
+    const msg =
+      err.name === "TimeoutError" || err.name === "AbortError"
+        ? "Délai dépassé vers l’API"
+        : err.message || "Erreur proxy";
+    const out = NextResponse.json({ error: msg }, { status: 502 });
+    applyBffSecurityHeaders(out.headers);
+    return out;
   }
 }
 
