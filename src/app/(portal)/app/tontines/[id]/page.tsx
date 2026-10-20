@@ -28,10 +28,10 @@ import { MemberTrustBadge } from "@/components/member-trust-badge";
 import { useTrustBatch } from "@/lib/use-trust-batch";
 import { memberDisplayName } from "@/lib/member-display";
 import { MmPayFields } from "@/components/mm-pay-fields";
+import { OperatorPicker } from "@/components/operator-picker";
 import { InviteLinkPanel } from "@/components/invite-link-panel";
 import {
   marketDial,
-  providerLabel,
   providerOptionKey,
   providersPath,
   railSlug,
@@ -742,32 +742,14 @@ export default function TontineDetailPage() {
                   </select>
                 </Field>
                 {ascaDepositMode === "mm" && (
-                  <>
-                    <Field label={t("tontines.provider")}>
-                      <select
-                        className={inputClass}
-                        value={ascaDepositProvider}
-                        onChange={(e) => setAscaDepositProvider(e.target.value)}
-                      >
-                        <option value="">{t("tontines.choose")}</option>
-                        {providerList.map((p) => {
-                          const key = providerOptionKey(p);
-                          return (
-                            <option key={key} value={key}>
-                              {providerLabel(p)}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </Field>
-                    <Field label={t("common.phone")}>
-                      <input
-                        className={inputClass}
-                        value={ascaDepositPhone}
-                        onChange={(e) => setAscaDepositPhone(e.target.value)}
-                      />
-                    </Field>
-                  </>
+                  <MmPayFields
+                    country={payMarket.country || ton.country || ""}
+                    capability="collection"
+                    provider={ascaDepositProvider}
+                    onProvider={setAscaDepositProvider}
+                    phone={ascaDepositPhone}
+                    onPhone={setAscaDepositPhone}
+                  />
                 )}
                 <Btn
                   disabled={
@@ -921,29 +903,19 @@ export default function TontineDetailPage() {
                             )}{" "}
                             · {a.shares ?? 0} parts
                           </span>
-                          <select
-                            className={inputClass}
+                          <OperatorPicker
+                            providers={disburseProviderList}
                             value={shareOutDest[a.userId ?? ""]?.provider ?? ""}
-                            onChange={(e) =>
+                            onChange={(key) =>
                               setShareOutDest((prev) => ({
                                 ...prev,
                                 [a.userId ?? ""]: {
-                                  provider: e.target.value,
+                                  provider: key,
                                   phone: prev[a.userId ?? ""]?.phone ?? "",
                                 },
                               }))
                             }
-                          >
-                            <option value="">{t("tontines.choose")}</option>
-                            {disburseProviderList.map((p) => {
-                              const key = providerOptionKey(p);
-                              return (
-                                <option key={key} value={key}>
-                                  {providerLabel(p)}
-                                </option>
-                              );
-                            })}
-                          </select>
+                          />
                           <input
                             className={inputClass}
                             placeholder={payMarket.country ? marketDial(payMarket.country) : "+"}
@@ -1681,32 +1653,14 @@ export default function TontineDetailPage() {
 
           {disburseAscaLoanId != null && (
             <Panel title="Décaissement prêt ASCA (Mobile Money)">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label={t("tontines.provider")}>
-                  <select
-                    className={inputClass}
-                    value={disburseProvider}
-                    onChange={(e) => setDisburseProvider(e.target.value)}
-                  >
-                    <option value="">{t("tontines.choose")}</option>
-                    {disburseProviderList.map((p) => {
-                      const key = providerOptionKey(p);
-                      return (
-                        <option key={key} value={key}>
-                          {providerLabel(p)}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </Field>
-                <Field label={t("common.phone")}>
-                  <input
-                    className={inputClass}
-                    value={disbursePhone}
-                    onChange={(e) => setDisbursePhone(e.target.value)}
-                  />
-                </Field>
-              </div>
+              <MmPayFields
+                country={payMarket.country || ton.country || ""}
+                capability="disbursement"
+                provider={disburseProvider}
+                onProvider={setDisburseProvider}
+                phone={disbursePhone}
+                onPhone={setDisbursePhone}
+              />
               <div className="mt-4 flex gap-2">
                 <Btn
                   disabled={
@@ -1731,7 +1685,7 @@ export default function TontineDetailPage() {
 
           {repayAscaLoanId != null && (
             <Panel title="Remboursement prêt ASCA (Mobile Money)">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3">
                 <Field label="Montant">
                   <input
                     className={inputClass}
@@ -1740,30 +1694,14 @@ export default function TontineDetailPage() {
                     type="number"
                   />
                 </Field>
-                <Field label={t("tontines.provider")}>
-                  <select
-                    className={inputClass}
-                    value={disburseProvider}
-                    onChange={(e) => setDisburseProvider(e.target.value)}
-                  >
-                    <option value="">{t("tontines.choose")}</option>
-                    {providerList.map((p) => {
-                      const key = providerOptionKey(p);
-                      return (
-                        <option key={key} value={key}>
-                          {providerLabel(p)}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </Field>
-                <Field label={t("common.phone")}>
-                  <input
-                    className={inputClass}
-                    value={disbursePhone}
-                    onChange={(e) => setDisbursePhone(e.target.value)}
-                  />
-                </Field>
+                <MmPayFields
+                  country={payMarket.country || ton.country || ""}
+                  capability="collection"
+                  provider={disburseProvider}
+                  onProvider={setDisburseProvider}
+                  phone={disbursePhone}
+                  onPhone={setDisbursePhone}
+                />
               </div>
               <div className="mt-4 flex gap-2">
                 <Btn

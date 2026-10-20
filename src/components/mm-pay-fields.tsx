@@ -7,6 +7,8 @@ import { useI18n } from "@/lib/i18n/context";
 import { normalizeList } from "@/lib/portal-api";
 import { countryLabel } from "@/lib/country-flag";
 import { normalizeCountry } from "@/lib/i18n/config";
+import { OperatorLogo } from "@/components/operator-logo";
+import { resolveOperatorLogo } from "@/lib/pawapay-logos";
 import {
   marketCurrencies,
   marketDial,
@@ -30,7 +32,7 @@ type Props = {
   onCurrency?: (currency: string) => void;
 };
 
-/** Opérateur, indicatif et devise suivent le pays choisi. */
+/** Opérateur (avec logo), indicatif et devise suivent le pays choisi. */
 export function MmPayFields({
   country,
   capability,
@@ -82,7 +84,6 @@ export function MmPayFields({
     if (!dial) return;
     const next = retargetPhone(phone, dial);
     if (next !== phone) onPhone(next);
-    // Le numéro n’est relu qu’au changement d’indicatif.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dial]);
 
@@ -119,25 +120,55 @@ export function MmPayFields({
         />
       </Field>
       <Field label={t("payments.operator")}>
-        <div className="flex flex-wrap gap-2" role="group" aria-label={t("payments.operator")}>
+        <div
+          className="grid grid-cols-2 gap-2 sm:grid-cols-3"
+          role="group"
+          aria-label={t("payments.operator")}
+        >
+          {list.length === 0 && res.loading ? (
+            <p className="col-span-full text-xs text-ink-mute">…</p>
+          ) : null}
+          {list.length === 0 && !res.loading ? (
+            <p className="col-span-full text-xs text-ink-mute">{t("payments.noProviders")}</p>
+          ) : null}
           {list.map((item) => {
             const key = providerOptionKey(item);
             const on = picked === key;
+            const label = providerLabel(item);
+            const logo = resolveOperatorLogo({
+              slug: providerSlug(item),
+              network: item.network,
+              apiLogoUrl: item.logoUrl,
+            });
             return (
               <button
                 key={key}
                 type="button"
                 className={
                   on
-                    ? "rounded-full border border-brand-600 bg-brand-50 px-3 py-2 text-sm font-bold text-brand-800"
-                    : "rounded-full border border-ink/15 bg-surface px-3 py-2 text-sm font-semibold text-ink"
+                    ? "flex items-center gap-2 rounded-2xl border-2 border-brand-600 bg-brand-50 px-3 py-2.5 text-left shadow-sm"
+                    : "flex items-center gap-2 rounded-2xl border border-ink/15 bg-surface px-3 py-2.5 text-left hover:border-brand-400"
                 }
                 onClick={() => {
                   setPicked(key);
                   if (key) onProvider(key);
                 }}
               >
-                {providerLabel(item)}
+                <OperatorLogo
+                  slug={providerSlug(item)}
+                  network={item.network}
+                  apiLogoUrl={logo}
+                  label={label}
+                  size="md"
+                />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-bold text-ink">{label}</span>
+                  {item.network ? (
+                    <span className="block truncate font-mono text-[10px] text-ink-mute">
+                      {item.network}
+                    </span>
+                  ) : null}
+                </span>
               </button>
             );
           })}

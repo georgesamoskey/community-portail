@@ -10,6 +10,7 @@ import { useAction } from "@/lib/use-action";
 import { bffFetch, BffError } from "@/lib/bff-fetch";
 import { MmPayFields } from "@/components/mm-pay-fields";
 import { railSlug } from "@/lib/mm-market";
+import { OperatorLogo } from "@/components/operator-logo";
 import { useMarketCountry } from "@/lib/use-market-country";
 import {
   Alert,
@@ -233,8 +234,15 @@ export default function PaymentsPage() {
             {lastTx.status ? (
               <Badge tone={statusTone(lastTx.status)}>{lastTx.status}</Badge>
             ) : null}
+            <OperatorLogo
+              slug={lastTx.provider}
+              providerHint={lastTx.provider}
+              label={lastTx.provider}
+              size="sm"
+              showLabel
+            />
             <span className="text-sm text-brand-800">
-              {lastTx.amount} {lastTx.currency} · {lastTx.provider}
+              {lastTx.amount} {lastTx.currency}
             </span>
             <code className="text-xs text-brand-600">{lastTx.id}</code>
           </div>

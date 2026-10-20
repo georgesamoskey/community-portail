@@ -32,6 +32,7 @@ import { useTrustBatch } from "@/lib/use-trust-batch";
 import { markPushMoment } from "@/components/push-prompt";
 import { memberDisplayName } from "@/lib/member-display";
 import { MmPayFields } from "@/components/mm-pay-fields";
+import { OperatorLogo } from "@/components/operator-logo";
 import { InviteLinkPanel } from "@/components/invite-link-panel";
 import { displayCurrency, railSlug } from "@/lib/mm-market";
 import { useMarketCountry } from "@/lib/use-market-country";
@@ -72,6 +73,8 @@ type Payout = {
   method?: string;
   reason?: string;
   currency?: string;
+  provider?: string;
+  destination?: { provider?: string; phone?: string };
 };
 
 function ContributionDetailFallback() {
@@ -1248,8 +1251,31 @@ function ContributionDetailInner() {
                         {p.netAmount != null &&
                           ` ${t("pots.net", { amount: money(p.netAmount, p.currency) })}`}
                       </p>
-                      <p className="text-xs text-brand-600">
-                        {p.method} · {p.reason}
+                      <p className="flex flex-wrap items-center gap-1.5 text-xs text-brand-600">
+                        {p.method === "mobile_money" ? (
+                          <OperatorLogo
+                            slug={
+                              typeof p.destination?.provider === "string"
+                                ? String(p.destination.provider)
+                                : p.provider
+                            }
+                            providerHint={
+                              typeof p.destination?.provider === "string"
+                                ? String(p.destination.provider)
+                                : p.provider
+                            }
+                            size="sm"
+                            showLabel
+                            label={
+                              typeof p.destination?.provider === "string"
+                                ? String(p.destination.provider)
+                                : p.provider ?? "MM"
+                            }
+                          />
+                        ) : (
+                          <span>{p.method}</span>
+                        )}
+                        {p.reason ? <span>· {p.reason}</span> : null}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">

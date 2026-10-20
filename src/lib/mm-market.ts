@@ -3,6 +3,7 @@ import { COUNTRIES, COUNTRY_META, normalizeCountry, type CountryCode } from "@/l
 export type MmNetwork = {
   provider: string;
   displayName: string;
+  logoUrl?: string;
   currencies?: string[];
 };
 
@@ -12,6 +13,7 @@ export type MmProvider = {
   name?: string;
   label?: string;
   network?: string | null;
+  logoUrl?: string | null;
   currencies?: string[];
   networks?: MmNetwork[];
 };
