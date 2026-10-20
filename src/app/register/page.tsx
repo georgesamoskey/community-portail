@@ -26,6 +26,7 @@ function RegisterInner() {
   const { t, country, setCountry } = useI18n();
   const router = useRouter();
   const params = useSearchParams();
+  const inviteToken = (params.get("invite") ?? "").trim();
   const [step, setStep] = useState<0 | 1>(0);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -38,12 +39,30 @@ function RegisterInner() {
   const [devHint, setDevHint] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [inviteTitle, setInviteTitle] = useState<string | null>(null);
   const { secondsLeft, canResend, arm } = useOtpResendCooldown();
 
   useEffect(() => {
     const c = params.get("country");
     if (c) setCountry(c as CountryCode);
   }, [params, setCountry]);
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    let cancelled = false;
+    void fetch(`/api/public/invitations/${encodeURIComponent(inviteToken)}`)
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = (await res.json()) as { contributionTitle?: string };
+        if (!cancelled && data.contributionTitle) {
+          setInviteTitle(data.contributionTitle);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteToken]);
 
   const sendOtp = async () => {
     setBusy(true);
@@ -76,21 +95,29 @@ function RegisterInner() {
         otpRequestId,
         otpCode: otpCode.trim(),
         referralCode: referral.trim() || undefined,
+        inviteToken: inviteToken || undefined,
       });
+      const afterRegister = inviteToken
+        ? `/invite/${encodeURIComponent(inviteToken)}?joined=1`
+        : "/app";
       const login = await signIn("password", {
         phone: phone.trim(),
         password,
         country,
         redirect: false,
-        callbackUrl: "/app",
+        callbackUrl: afterRegister,
       });
       if (login?.error) {
         router.replace(
-          `/login?registered=1&phone=${encodeURIComponent(phone.trim())}`,
+          `/login?registered=1&phone=${encodeURIComponent(phone.trim())}${
+            inviteToken
+              ? `&callbackUrl=${encodeURIComponent(afterRegister)}`
+              : ""
+          }`,
         );
         return;
       }
-      window.location.href = "/app";
+      window.location.href = afterRegister;
     } catch (e) {
       setError(
         e instanceof PublicAuthError ? e.message : t("common.error"),
@@ -107,6 +134,13 @@ function RegisterInner() {
           {t("register.title")}
         </h1>
         <p className="mt-2 text-sm text-ink-mute">{t("register.subtitle")}</p>
+        {inviteToken ? (
+          <p className="mt-3 rounded-xl bg-mint-50 px-3 py-2.5 text-sm text-mint-900">
+            {inviteTitle
+              ? t("invite.registerBanner", { title: inviteTitle })
+              : t("invite.registerBannerGeneric")}
+          </p>
+        ) : null}
       </div>
 
       {error ? (

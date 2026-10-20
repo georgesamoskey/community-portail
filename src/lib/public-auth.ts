@@ -60,6 +60,7 @@ export function registerAccount(body: {
   otpCode: string;
   email?: string;
   referralCode?: string;
+  inviteToken?: string;
 }) {
   return post<{ accessToken?: string; user?: { id?: string } }>("register", body);
 }

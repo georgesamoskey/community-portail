@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { SignInButton } from "@/components/sign-in-button";
 import { bffFetch, BffError } from "@/lib/bff-fetch";
@@ -30,6 +30,30 @@ function inviteErrorText(
   return raw || fallback;
 }
 
+function groupHref(
+  data: InviteAcceptBody,
+  preview: InvitePreview | null,
+): string | null {
+  const chatRoomId = data.chatRoomId || preview?.chatRoomId;
+  const tontineId = data.tontineId || preview?.tontineId;
+  const contributionId = data.contributionId || preview?.contributionId;
+  if (chatRoomId) return `/app/chat?room=${chatRoomId}`;
+  if (tontineId) return `/app/tontines/${tontineId}`;
+  if (contributionId) return `/app/contributions/${contributionId}`;
+  return null;
+}
+
+function openAcceptedGroup(
+  data: InviteAcceptBody,
+  preview: InvitePreview | null,
+  push: (href: string) => void,
+): boolean {
+  const href = groupHref(data, preview);
+  if (!href) return false;
+  push(href);
+  return true;
+}
+
 function openExistingGroup(
   message: string,
   preview: InvitePreview | null,
@@ -39,27 +63,10 @@ function openExistingGroup(
   return openAcceptedGroup({}, preview, push);
 }
 
-function openAcceptedGroup(
-  data: InviteAcceptBody,
-  preview: InvitePreview | null,
-  push: (href: string) => void,
-): boolean {
-  const tontineId = data.tontineId || preview?.tontineId;
-  const contributionId = data.contributionId || preview?.contributionId;
-  if (tontineId) {
-    push(`/app/tontines/${tontineId}`);
-    return true;
-  }
-  if (contributionId) {
-    push(`/app/contributions/${contributionId}`);
-    return true;
-  }
-  return false;
-}
-
 type InviteAcceptBody = {
   tontineId?: string;
   contributionId?: string;
+  chatRoomId?: string | null;
   message?: string | string[];
 };
 
@@ -68,6 +75,7 @@ type InvitePreview = {
   id?: string;
   contributionId?: string;
   tontineId?: string;
+  chatRoomId?: string | null;
   contributionTitle?: string;
   inviterName?: string;
   message?: string;
@@ -75,9 +83,11 @@ type InvitePreview = {
   error?: string;
 };
 
-export default function InviteTokenPage() {
+function InviteTokenInner() {
   const params = useParams();
+  const search = useSearchParams();
   const token = String(params.token ?? "");
+  const justJoined = search.get("joined") === "1";
   const router = useRouter();
   const { data: session, status } = useSession();
   const { t } = useI18n();
@@ -86,6 +96,8 @@ export default function InviteTokenPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [welcome, setWelcome] = useState(justJoined);
+  const autoTried = useRef(false);
 
   useEffect(() => {
     if (!token) return;
@@ -93,7 +105,9 @@ export default function InviteTokenPage() {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/public/invitations/${encodeURIComponent(token)}`);
+        const res = await fetch(
+          `/api/public/invitations/${encodeURIComponent(token)}`,
+        );
         const data = (await res.json()) as InvitePreview & { message?: string };
         if (!cancelled) {
           if (!res.ok) setErr(data.error ?? data.message ?? t("invite.notFound"));
@@ -110,40 +124,39 @@ export default function InviteTokenPage() {
     };
   }, [token, t]);
 
-  const accept = async () => {
+  const accept = async (auto = false) => {
     setBusy(true);
     setErr(null);
-    setMsg(null);
+    if (!auto) setMsg(null);
     try {
-      if (session?.user) {
-        let userId: string | undefined;
-        try {
-          const me = await bffFetch<{ id?: string }>("/users/me");
-          userId = me?.id;
-        } catch {
-          /* ignore */
-        }
-        const res = await fetch(
-          `/api/public/invitations/${encodeURIComponent(token)}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(userId ? { userId } : {}),
-          },
-        );
-        const text = await res.text();
-        const data = parseInviteBody(text);
-        if (!res.ok) {
-          const message = inviteErrorText(data, text, t("common.error"));
-          if (openExistingGroup(message, preview, router.push)) return;
-          throw new Error(message);
-        }
-        const opened = openAcceptedGroup(data, preview, router.push);
-        if (opened) return;
-      } else {
-        throw new Error(t("invite.needAuth"));
+      if (!session?.user) throw new Error(t("invite.needAuth"));
+      let userId: string | undefined;
+      try {
+        const me = await bffFetch<{ id?: string }>("/users/me");
+        userId = me?.id;
+      } catch {
+        /* ignore */
       }
-      setMsg(t("invite.accepted"));
+      const res = await fetch(
+        `/api/public/invitations/${encodeURIComponent(token)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(userId ? { userId } : {}),
+        },
+      );
+      const text = await res.text();
+      const data = parseInviteBody(text);
+      if (!res.ok) {
+        const message = inviteErrorText(data, text, t("common.error"));
+        if (openExistingGroup(message, preview, router.push)) return;
+        throw new Error(message);
+      }
+      setWelcome(true);
+      setMsg(t("invite.welcomeCircle"));
+      window.setTimeout(() => {
+        openAcceptedGroup(data, preview, router.push);
+      }, 900);
     } catch (e) {
       setErr(
         e instanceof BffError
@@ -157,6 +170,20 @@ export default function InviteTokenPage() {
     }
   };
 
+  useEffect(() => {
+    if (!justJoined || status !== "authenticated" || !preview || autoTried.current) {
+      return;
+    }
+    autoTried.current = true;
+    void accept(true);
+    // Une seule fois après inscription.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [justJoined, status, preview?.id]);
+
+  const title =
+    preview?.contributionTitle ??
+    (preview?.kind === "tontine" ? t("invite.circle") : t("invite.pot"));
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
       <div className="social-rise w-full max-w-lg rounded-2.5xl border border-ink/[0.06] bg-surface p-8 shadow-chat">
@@ -164,28 +191,26 @@ export default function InviteTokenPage() {
           {t("invite.title")}
         </p>
         {loading && (
-          <p className="mt-6 text-center text-sm text-ink-mute">{t("invite.loading")}</p>
+          <p className="mt-6 text-center text-sm text-ink-mute">
+            {t("invite.loading")}
+          </p>
         )}
         {err && (
           <p className="mt-6 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-900">
             {err}
           </p>
         )}
-        {msg && (
-          <p className="mt-6 rounded-xl bg-mint-50 px-4 py-3 text-sm text-mint-900">
-            {msg}
+        {(msg || welcome) && !err ? (
+          <p className="mt-6 rounded-xl bg-mint-50 px-4 py-3 text-center text-sm font-semibold text-mint-900">
+            {msg ?? t("invite.welcomeCircle")}
           </p>
-        )}
+        ) : null}
         {preview && !err && (
           <div className="mt-6 space-y-3 text-center">
-            <h1 className="font-display text-xl font-bold text-ink">
-              {preview.contributionTitle ??
-                (preview.kind === "tontine" ? t("invite.circle") : t("invite.pot"))}
-            </h1>
+            <h1 className="font-display text-xl font-bold text-ink">{title}</h1>
             {preview.inviterName ? (
               <p className="text-sm text-ink-mute">
-                {t("invite.invitedBy")}{" "}
-                <strong>{preview.inviterName}</strong>
+                {t("invite.invitedBy")} <strong>{preview.inviterName}</strong>
               </p>
             ) : null}
             {preview.message ? (
@@ -201,39 +226,41 @@ export default function InviteTokenPage() {
 
             {status === "authenticated" ? (
               <div className="flex flex-col items-center gap-3 pt-4">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void accept()}
-                  className="w-full rounded-xl bg-brand-500 px-5 py-3 text-sm font-bold text-white shadow-lift hover:bg-brand-600 disabled:opacity-40"
-                >
-                  {busy ? t("invite.accepting") : t("invite.accept")}
-                </button>
-                {preview.kind === "tontine" && preview.tontineId ? (
-                  <Link
-                    href={`/app/tontines/${preview.tontineId}`}
-                    className="text-sm font-semibold text-brand-600"
+                {!welcome ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void accept()}
+                    className="w-full rounded-xl bg-brand-500 px-5 py-3 text-sm font-bold text-white shadow-lift hover:bg-brand-600 disabled:opacity-40"
                   >
-                    {t("invite.seeTontine")}
-                  </Link>
-                ) : preview.contributionId ? (
-                  <Link
-                    href={`/app/contributions/${preview.contributionId}`}
-                    className="text-sm font-semibold text-brand-600"
+                    {busy ? t("invite.accepting") : t("invite.accept")}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      openAcceptedGroup({}, preview, router.push)
+                    }
+                    className="w-full rounded-xl bg-brand-500 px-5 py-3 text-sm font-bold text-white shadow-lift hover:bg-brand-600 disabled:opacity-40"
                   >
-                    {t("invite.seePot")}
-                  </Link>
-                ) : null}
+                    {preview.chatRoomId
+                      ? t("invite.openChat")
+                      : preview.kind === "tontine"
+                        ? t("invite.seeTontine")
+                        : t("invite.seePot")}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-3 pt-4">
                 <p className="text-sm text-ink-mute">{t("invite.hint")}</p>
-                <a
-                  href={`${process.env.NEXT_PUBLIC_CMS_URL?.replace(/\/$/, "") || "http://localhost:3004"}/register?invite=${encodeURIComponent(token)}`}
+                <Link
+                  href={`/register?invite=${encodeURIComponent(token)}`}
                   className="inline-flex w-full items-center justify-center rounded-xl bg-brand-500 px-5 py-3 text-sm font-bold text-white shadow-lift hover:bg-brand-600"
                 >
                   {t("invite.createAccount")}
-                </a>
+                </Link>
                 <SignInButton
                   label={t("invite.alreadyMember")}
                   callbackUrl={`/invite/${token}`}
@@ -250,5 +277,17 @@ export default function InviteTokenPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function InviteTokenPage() {
+  return (
+    <Suspense
+      fallback={
+        <p className="p-8 text-center text-sm text-ink-mute">…</p>
+      }
+    >
+      <InviteTokenInner />
+    </Suspense>
   );
 }

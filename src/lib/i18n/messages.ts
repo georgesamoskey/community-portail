@@ -298,7 +298,11 @@ export const messages = {
       shareText: "Rejoins « {{title}} » sur Akiba One : {{url}}",
       preparing: "Préparation du lien…",
       ready: "Prêt à envoyer",
-      sendWhatsapp: "Envoyer sur WhatsApp"
+      sendWhatsapp: "Envoyer sur WhatsApp",
+      welcomeCircle: "Tu es dans le cercle",
+      openChat: "Ouvrir la discussion",
+      registerBanner: "Après inscription, tu rejoins « {{title}} ».",
+      registerBannerGeneric: "Après inscription, tu rejoins le cercle automatiquement."
     },
     tontines: {
       title: "Mes tontines",
@@ -1278,7 +1282,11 @@ export const messages = {
       shareText: "Join « {{title}} » on Akiba One: {{url}}",
       preparing: "Preparing the link…",
       ready: "Ready to send",
-      sendWhatsapp: "Send on WhatsApp"
+      sendWhatsapp: "Send on WhatsApp",
+      welcomeCircle: "You’re in the circle",
+      openChat: "Open the chat",
+      registerBanner: "After signup, you join « {{title}} ».",
+      registerBannerGeneric: "After signup, you join the circle automatically."
     },
     tontines: {
       title: "My tontines",
@@ -2240,7 +2248,11 @@ export const messages = {
       shareText: "Injira « {{title}} » kuri Akiba One : {{url}}",
       preparing: "Gutegura uruja n'uruza…",
       ready: "Biteguye gutunganya",
-      sendWhatsapp: "Rungika kuri WhatsApp"
+      sendWhatsapp: "Rungika kuri WhatsApp",
+      welcomeCircle: "Uri mu muryango",
+      openChat: "Fungura ikiganiro",
+      registerBanner: "Nyuma yo kwiyandikisha, winjira muri « {{title}} ».",
+      registerBannerGeneric: "Nyuma yo kwiyandikisha, winjira mu muryango."
     },
     tontines: {
       title: "My tontines",
@@ -3201,7 +3213,11 @@ export const messages = {
       shareText: "Jiunge « {{title}} » kwenye Akiba One: {{url}}",
       preparing: "Inaandaa kiungo…",
       ready: "Tayari kutuma",
-      sendWhatsapp: "Tuma kwa WhatsApp"
+      sendWhatsapp: "Tuma kwa WhatsApp",
+      welcomeCircle: "Uko katika duara",
+      openChat: "Fungua mazungumzo",
+      registerBanner: "Baada ya kujisajili, utajiunga na « {{title}} ».",
+      registerBannerGeneric: "Baada ya kujisajili, utajiunga na duara kiotomatiki."
     },
     tontines: {
       title: "My tontines",
@@ -4161,7 +4177,11 @@ export const messages = {
       shareText: "Kota na « {{title}} » na Akiba One : {{url}}",
       preparing: "Kobongisa lien…",
       ready: "Ekoki kotindama",
-      sendWhatsapp: "Tinda na WhatsApp"
+      sendWhatsapp: "Tinda na WhatsApp",
+      welcomeCircle: "Ozali na kati ya lisanga",
+      openChat: "Fungola lisolo",
+      registerBanner: "Simá inscription, okoti na « {{title}} ».",
+      registerBannerGeneric: "Simá inscription, okoti na lisanga moko moko."
     },
     tontines: {
       title: "Batontine na ngai",
