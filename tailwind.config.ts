@@ -17,6 +17,25 @@ export default {
           soft: "var(--ink-soft)",
           mute: "var(--ink-mute)",
           faint: "var(--ink-faint)",
+          // Échelle numérique du studio CMS (ex community-cms), migrée
+          // telle quelle pour le rendu des pages marketing/blog — ne
+          // remplace pas les tokens sémantiques ci-dessus.
+          50: "#f4f7f6",
+          100: "#e2ebe8",
+          200: "#c5d7d1",
+          700: "#2a4a42",
+          800: "#1c332e",
+          900: "#122420",
+        },
+        lagoon: {
+          400: "#3db8a0",
+          500: "#1f9a82",
+          600: "#167a66",
+          700: "#115c4d",
+        },
+        sun: {
+          400: "#f0c14d",
+          500: "#e2a820",
         },
         brand: {
           50: "var(--brand-50)",
