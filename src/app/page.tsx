@@ -1,95 +1,56 @@
-"use client";
-
+import type { Metadata } from "next";
 import Link from "next/link";
-import { useI18n } from "@/lib/i18n/context";
+import { RenderPageBlocks } from "@/builder/render-blocks";
+import { findPageBySlug, getPublishedSiteDocument } from "@/lib/cms-public-site";
 
-export default function HomePage() {
-  const { t, messages } = useI18n();
+export const dynamic = "force-dynamic";
 
-  const features = [
-    {
-      title: t("landing.featChat"),
-      text: t("landing.featChatDesc"),
-      accent: "from-brand-500/15",
-    },
-    {
-      title: t("landing.featMoney"),
-      text: t("landing.featMoneyDesc"),
-      accent: "from-mint-500/15",
-    },
-    {
-      title: t("landing.featPay"),
-      text: t("landing.featPayDesc"),
-      accent: "from-ink/5",
-    },
-  ];
+/**
+ * Page d'accueil — rendue depuis le studio CMS (community-backoffice →
+ * eagaseke `/api/cms/published`), plus de contenu codé en dur ici.
+ * Migration depuis community-cms, qui ne sert plus que de studio
+ * d'édition (déplacé vers community-backoffice).
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const doc = await getPublishedSiteDocument();
+  if (!doc) return {};
+  const page = findPageBySlug(doc, []);
+  if (!page) return {};
+  return {
+    title: page.seo.title || page.title,
+    description: page.seo.description,
+    robots: page.seo.noIndex ? { index: false, follow: false } : undefined,
+    openGraph: page.seo.ogImage
+      ? { images: [{ url: page.seo.ogImage }] }
+      : undefined,
+  };
+}
 
-  return (
-    <div className="relative min-h-screen overflow-hidden">
-      <header className="relative z-10 mx-auto flex max-w-5xl items-center justify-between px-4 py-5 sm:px-6">
-        <span className="flex items-center gap-2.5 font-display text-xl font-bold tracking-tight text-ink">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/icon.png"
-            alt=""
-            width={36}
-            height={36}
-            className="h-9 w-9 rounded-xl shadow-lift"
-          />
-          {messages.brand}
-        </span>
+export default async function HomePage() {
+  const doc = await getPublishedSiteDocument();
+  const page = doc ? findPageBySlug(doc, []) : undefined;
+
+  // Pas de 404 sur l'accueil si le CMS est momentanément injoignable ou
+  // sans contenu publié (ex. tout juste déployé) — repli minimal plutôt
+  // que de casser la porte d'entrée du site.
+  if (!doc || !page || page.status === "draft") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
+        <h1 className="font-display text-2xl font-semibold text-ink">
+          Akiba One
+        </h1>
+        <p className="max-w-sm text-ink-soft">
+          Épargne collective, tontines ASCA, chat et paiements Mobile Money.
+        </p>
         <Link
           href="/login"
-          className="text-sm font-semibold text-ink-soft hover:text-brand-600"
+          className="rounded-full bg-brand-600 px-6 py-3 text-sm font-semibold text-white"
         >
-          {t("landing.signIn")}
+          Connexion
         </Link>
-      </header>
+      </div>
+    );
+  }
 
-      <main className="relative z-10 mx-auto flex max-w-5xl flex-col gap-12 px-4 pb-20 pt-10 sm:px-6 sm:pt-16">
-        <section className="social-rise max-w-2xl">
-          <p className="font-display text-5xl font-bold tracking-tightest text-ink sm:text-6xl">
-            {messages.brand}
-          </p>
-          <h1 className="mt-5 text-2xl font-medium leading-snug text-ink-soft sm:text-3xl">
-            {t("landing.hero")}
-          </h1>
-          <p className="mt-4 max-w-xl text-base leading-relaxed text-ink-mute sm:text-lg">
-            {t("landing.sub")}
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link
-              href={`/login?callbackUrl=${encodeURIComponent("/app/chat")}`}
-              className="inline-flex items-center justify-center rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-bold text-white shadow-lift transition hover:bg-brand-600"
-            >
-              {t("landing.enterChat")}
-            </Link>
-            <Link
-              href="/register"
-              className="inline-flex items-center rounded-xl border border-ink/[0.1] bg-surface/90 px-5 py-2.5 text-sm font-semibold text-ink shadow-soft transition hover:border-brand-300"
-            >
-              {t("auth.createAccount")}
-            </Link>
-          </div>
-        </section>
-
-        <section className="grid gap-4 sm:grid-cols-3">
-          {features.map((card, i) => (
-            <div
-              key={card.title}
-              className={`social-rise rounded-2.5xl border border-ink/[0.06] bg-gradient-to-br ${card.accent} to-surface p-5 shadow-soft`}
-              style={{ animationDelay: `${100 + i * 80}ms` }}
-            >
-              <h2 className="font-display text-lg font-bold tracking-tight text-ink">
-                {card.title}
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-ink-mute">
-                {card.text}
-              </p>
-            </div>
-          ))}
-        </section>
-      </main>
-    </div>
-  );
+  return <RenderPageBlocks blocks={page.blocks} doc={doc} />;
 }
