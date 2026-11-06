@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useBff } from "@/lib/use-bff";
 import { useAction } from "@/lib/use-action";
-import { bffFetch } from "@/lib/bff-fetch";
+import { bffFetch, BffError } from "@/lib/bff-fetch";
 import { normalizeList } from "@/lib/portal-api";
-import { hasPermission, Permission } from "@/lib/portal-permissions";
 import {
   Alert,
   Badge,
@@ -24,7 +23,19 @@ import {
 } from "@/lib/ui";
 import { markChecklist } from "@/lib/retention";
 import { useI18n } from "@/lib/i18n/context";
+import { useOffline } from "@/lib/offline/context";
 import { LiveActivityList, type LiveActivityItem } from "@/components/live-activity-list";
+import { LocalDataHint } from "@/components/offline-ui";
+import { MemberAvatar } from "@/components/member-avatar";
+import { MemberTrustBadge } from "@/components/member-trust-badge";
+import { useTrustBatch } from "@/lib/use-trust-batch";
+import { markPushMoment } from "@/components/push-prompt";
+import { memberDisplayName } from "@/lib/member-display";
+import { MmPayFields } from "@/components/mm-pay-fields";
+import { OperatorLogo } from "@/components/operator-logo";
+import { InviteLinkPanel } from "@/components/invite-link-panel";
+import { displayCurrency, railSlug } from "@/lib/mm-market";
+import { useMarketCountry } from "@/lib/use-market-country";
 
 type Contribution = {
   id?: string;
@@ -33,7 +44,10 @@ type Contribution = {
   status?: string;
   financialGoal?: number;
   currency?: string;
+  country?: string;
   isPublic?: boolean;
+  deadline?: string;
+  settings?: { allOrNothing?: boolean };
   chatRoomId?: string | null;
   createdBy?: string;
   creatorId?: string;
@@ -59,6 +73,8 @@ type Payout = {
   method?: string;
   reason?: string;
   currency?: string;
+  provider?: string;
+  destination?: { provider?: string; phone?: string };
 };
 
 function ContributionDetailFallback() {
@@ -82,9 +98,13 @@ function ContributionDetailInner() {
   const search = useSearchParams();
   const id = String(params.id ?? "");
   const highlightCotisation = search.get("cotisation");
+  const declareOnLaunch =
+    search.get("declare") === "1" || search.get("declare") === "true";
   const { data: session } = useSession();
-  const canPay = hasPermission(session?.user?.roles, Permission.PORTAL_PAYMENTS);
+  /** ISO natif : tout membre connecté peut payer MM (pas de dead-end role). */
+  const canPay = Boolean(session?.user);
   const action = useAction();
+  const offline = useOffline();
 
   const detail = useBff<Contribution>(id ? `/contributions/${id}` : null);
   const cotisations = useBff<unknown>(
@@ -99,9 +119,7 @@ function ContributionDetailInner() {
   const balance = useBff<{ available?: number; balance?: number; currency?: string }>(
     id ? `/contributions/${id}/payouts/balance` : null,
   );
-  const providers = useBff<unknown>(
-    canPay ? "/mobile-money/providers?capability=collection" : null,
-  );
+  const payMarket = useMarketCountry(detail.data?.country);
 
   const c = detail.data;
   const cotList = normalizeList<Cotisation>(cotisations.data, [
@@ -114,15 +132,6 @@ function ContributionDetailInner() {
     "payouts",
     "data",
   ]);
-  const providerList = useMemo(
-    () =>
-      normalizeList<{ slug?: string; id?: string; name?: string }>(
-        providers.data,
-        ["items", "providers", "data"],
-      ),
-    [providers.data],
-  );
-
   const [montant, setMontant] = useState("5000");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [notes, setNotes] = useState("");
@@ -145,10 +154,27 @@ function ContributionDetailInner() {
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [inviteLinks, setInviteLinks] = useState<unknown[]>([]);
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
+  const [inviteLinkState, setInviteLinkState] = useState<
+    "loading" | "ready" | "denied"
+  >("loading");
   const [participants, setParticipants] = useState<
-    Array<{ id?: string; userId?: string; role?: string; fullName?: string }>
+    Array<{
+      id?: string;
+      userId?: string;
+      role?: string;
+      fullName?: string;
+      avatar?: string | null;
+    }>
   >([]);
-  const [mmFee, setMmFee] = useState<unknown>(null);
+  const trustByUser = useTrustBatch(
+    participants.map((p) => p.userId ?? p.id),
+  );
+  const [mmFee, setMmFee] = useState<{
+    fee?: number;
+    total?: number;
+    amount?: number;
+    currency?: string;
+  } | null>(null);
   const [roleUserId, setRoleUserId] = useState("");
   const [roleValue, setRoleValue] = useState("member");
   const [extraInsight, setExtraInsight] = useState<{
@@ -158,8 +184,63 @@ function ContributionDetailInner() {
     atts?: unknown;
   } | null>(null);
   const [tab, setTab] = useState<"overview" | "pay" | "money" | "people" | "more">(
-    highlightCotisation ? "money" : "pay",
+    highlightCotisation && !declareOnLaunch ? "money" : "pay",
   );
+
+  useEffect(() => {
+    if (declareOnLaunch) setTab("pay");
+    else if (highlightCotisation) setTab("money");
+  }, [declareOnLaunch, highlightCotisation]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await bffFetch<{ inviteUrl?: string }>(
+          `/invitations/share/contribution/${id}`,
+          { method: "POST" },
+        );
+        if (cancelled) return;
+        if (data.inviteUrl) setLastInviteLink(data.inviteUrl);
+        setInviteLinkState(data.inviteUrl ? "ready" : "denied");
+      } catch {
+        if (!cancelled) setInviteLinkState("denied");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  // Préremplir MM : montant unique, 1er provider, téléphone du profil
+  useEffect(() => {
+    setMmAmount(montant);
+  }, [montant]);
+
+  useEffect(() => {
+    if (mmPhone) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const me = await bffFetch<{
+          id?: string;
+          phone?: string;
+          phoneNumber?: string;
+        }>("/users/me");
+        if (cancelled) return;
+        if (me?.id && !payerUserId) setPayerUserId(me.id);
+        const phone = me?.phone ?? me?.phoneNumber ?? "";
+        if (phone) setMmPhone(phone);
+      } catch {
+        /* optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const defaultPayoutReason = t("pots.defaultPayout");
   const effectivePayoutReason = payoutReason || defaultPayoutReason;
@@ -173,29 +254,42 @@ function ContributionDetailInner() {
   };
 
   const declareCotisation = () =>
-    void action.mutate(
-      "/cotisations",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          contributionId: id,
-          montant: Number(montant),
-          paymentMethod,
-          notes: notes || undefined,
-        }),
-      },
-      {
-        success: t("pots.okDeclared"),
-        onDone: () => {
+    void action.run(async () => {
+      const body = {
+        contributionId: id,
+        montant: Number(montant),
+        paymentMethod,
+        notes: notes || undefined,
+      };
+      try {
+        if (!offline.online) {
+          await offline.enqueueCotisation(body);
           markChecklist("paid_or_cotised");
-          reload();
-        },
-      },
-    );
+          return { queued: true };
+        }
+        await bffFetch("/cotisations", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+        markChecklist("paid_or_cotised");
+        reload();
+        return { queued: false };
+      } catch (e) {
+        if (e instanceof BffError && (e.status === 0 || e.code === "NETWORK_ERROR")) {
+          await offline.enqueueCotisation(body);
+          markChecklist("paid_or_cotised");
+          return { queued: true };
+        }
+        throw e;
+      }
+    }, {
+      success: (r) =>
+        r?.queued ? t("pwa.queuedOk") : t("pots.okDeclared"),
+    });
 
   const payMm = async () => {
     let uid = payerUserId;
-    if (!uid) {
+    if (!uid && offline.online) {
       try {
         const me = await bffFetch<{ id?: string }>("/users/me");
         uid = me?.id ?? "";
@@ -204,26 +298,53 @@ function ContributionDetailInner() {
         /* ignore */
       }
     }
-    void action.mutate(
-      `/contributions/${id}/mobile-money/pay`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          payerUserId: uid,
-          amount: Number(mmAmount),
-          provider: mmProvider,
+    void action.run(async () => {
+      const mmPayload = {
+        contributionId: id,
+        montant: Number(mmAmount),
+        paymentMethod: "mobile_money",
+        notes: notes || undefined,
+        mobileMoney: {
+          provider: railSlug(mmProvider),
           payerPhone: mmPhone,
-          notes: notes || undefined,
-        }),
-      },
-      {
-        success: t("pots.okMm"),
-        onDone: () => {
-          markChecklist("paid_or_cotised");
-          reload();
+          amount: Number(mmAmount),
         },
-      },
-    );
+      };
+      try {
+        if (!offline.online) {
+          await offline.enqueueCotisation(mmPayload);
+          markChecklist("paid_or_cotised");
+          return { queued: true };
+        }
+        await bffFetch(`/contributions/${id}/mobile-money/pay`, {
+          method: "POST",
+          body: JSON.stringify({
+            payerUserId: uid,
+            amount: Number(mmAmount),
+            provider: railSlug(mmProvider),
+            payerPhone: mmPhone,
+            notes: notes || undefined,
+          }),
+        });
+        markChecklist("paid_or_cotised");
+        markPushMoment("pay");
+        reload();
+        return { queued: false };
+      } catch (e) {
+        if (
+          e instanceof BffError &&
+          (e.status === 0 || e.code === "NETWORK_ERROR")
+        ) {
+          await offline.enqueueCotisation(mmPayload);
+          markChecklist("paid_or_cotised");
+          return { queued: true };
+        }
+        throw e;
+      }
+    }, {
+      success: (r) =>
+        r?.queued ? t("pwa.queuedMm") : t("pots.okMm"),
+    });
   };
 
   const lifecycle = (actionName: "activate" | "close" | "reopen" | "archive") =>
@@ -415,10 +536,19 @@ function ContributionDetailInner() {
         amount: mmAmount,
         payerPhone: mmPhone || "",
       });
-      const data = await bffFetch(
-        `/contributions/${id}/mobile-money/fee-preview?${q}`,
-      );
-      setMmFee(data);
+      const data = await bffFetch<{
+        fee?: number;
+        fees?: number;
+        total?: number;
+        amount?: number;
+        currency?: string;
+      }>(`/contributions/${id}/mobile-money/fee-preview?${q}`);
+      setMmFee({
+        fee: data.fee ?? data.fees,
+        total: data.total,
+        amount: data.amount,
+        currency: data.currency,
+      });
       return data;
     }, { success: t("pots.okFees") });
 
@@ -492,7 +622,7 @@ function ContributionDetailInner() {
   const requestPayout = () => {
     const destination =
       payoutMethod === "mobile_money"
-        ? { provider: payoutProvider, phone: payoutPhone }
+        ? { provider: railSlug(payoutProvider), phone: payoutPhone }
         : payoutMethod === "cash"
           ? { handlerName: "Cash", notes: "Remise" }
           : {
@@ -509,7 +639,7 @@ function ContributionDetailInner() {
           method: payoutMethod,
           destination,
           reason: effectivePayoutReason,
-          currency: c?.currency ?? "BIF",
+          currency: displayCurrency(c?.currency, c?.country),
         }),
       },
       { success: t("pots.okPayoutReq"), onDone: reload },
@@ -544,6 +674,7 @@ function ContributionDetailInner() {
 
   return (
     <div className="space-y-6">
+      <LocalDataHint show={detail.fromCache || cotisations.fromCache} />
       <PageHeader
         title={c?.title ?? t("pots.detailFallback")}
         description={
@@ -553,7 +684,7 @@ function ContributionDetailInner() {
           <>
             <Link
               href="/app/contributions"
-              className="rounded-xl border border-brand-200 bg-white px-3.5 py-2 text-sm font-semibold text-brand-800"
+              className="rounded-xl border border-brand-200 bg-surface px-3.5 py-2 text-sm font-semibold text-brand-800"
             >
               {t("common.list")}
             </Link>
@@ -588,15 +719,18 @@ function ContributionDetailInner() {
               <Badge tone={statusTone(c.status)}>{c.status}</Badge>
             ) : null}
             <Badge>
-              {t("pots.goalBadge", { amount: money(c.financialGoal, c.currency ?? "BIF") })}
+              {t("pots.goalBadge", { amount: money(c.financialGoal, displayCurrency(c.currency, c.country)) })}
             </Badge>
             {c.isPublic ? <Badge tone="info">{t("common.public")}</Badge> : null}
+            {c.settings?.allOrNothing ? (
+              <Badge tone="warn">{t("pots.allOrNothingBadge")}</Badge>
+            ) : null}
             {balance.data && (
               <Badge tone="ok">
                 {t("pots.balance", {
                   amount: money(
                     balance.data.available ?? balance.data.balance,
-                    balance.data.currency ?? c.currency ?? "BIF",
+                    balance.data.currency ?? displayCurrency(c.currency, c.country),
                   ),
                 })}
               </Badge>
@@ -617,6 +751,107 @@ function ContributionDetailInner() {
               </span>
               <span className="font-bold text-brand-600">{t("common.open")} →</span>
             </a>
+          ) : null}
+
+          {inviteLinkState !== "denied" ? (
+            <Panel title={t("pots.invitations")}>
+              <InviteLinkPanel
+                hint={t("invite.shareHintPot")}
+                url={lastInviteLink}
+                busy={inviteLinkState === "loading"}
+                shareText={t("invite.shareText", {
+                  title: c?.title ?? t("invite.pot"),
+                  url: lastInviteLink ?? "",
+                })}
+                otherLabel={t("invite.otherEmail")}
+              >
+                <div className="grid gap-3">
+                  <Field label={t("common.email")}>
+                    <input
+                      className={inputClass}
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                    />
+                  </Field>
+                  <Field label={t("common.phone")}>
+                    <input
+                      className={inputClass}
+                      value={invitePhone}
+                      onChange={(e) => setInvitePhone(e.target.value)}
+                    />
+                  </Field>
+                  <Field label={t("pots.message")}>
+                    <input
+                      className={inputClass}
+                      value={inviteMsg}
+                      onChange={(e) => setInviteMsg(e.target.value)}
+                    />
+                  </Field>
+                  <div className="flex flex-wrap gap-2">
+                    <Btn
+                      disabled={
+                        action.busy || (!inviteEmail.trim() && !invitePhone.trim())
+                      }
+                      onClick={invite}
+                    >
+                      {t("common.invite")}
+                    </Btn>
+                    <Btn variant="secondary" onClick={createInviteLink}>
+                      {t("pots.createLink")}
+                    </Btn>
+                    <Btn variant="ghost" onClick={loadInviteLinks}>
+                      {t("pots.listLinks")}
+                    </Btn>
+                    <Link
+                      href="/app/invitations"
+                      className="rounded-xl border border-brand-200 px-3.5 py-2 text-sm font-semibold text-brand-800"
+                    >
+                      {t("pots.myInvites")}
+                    </Link>
+                  </div>
+                  {inviteLinks.length > 0 && (
+                    <ul className="mt-3 divide-y divide-ink/[0.06] text-sm">
+                      {inviteLinks.map((raw, i) => {
+                        const link = raw as {
+                          id?: string;
+                          token?: string;
+                          expiresAt?: string;
+                        };
+                        return (
+                          <li
+                            key={link.id ?? i}
+                            className="flex flex-wrap items-center justify-between gap-2 py-2"
+                          >
+                            <span className="font-mono text-xs">
+                              {(link.token ?? link.id ?? "?").slice(0, 14)}…
+                            </span>
+                            <div className="flex gap-1">
+                              {link.token ? (
+                                <Link
+                                  href={`/invite/${link.token}`}
+                                  className="text-xs font-semibold text-brand-600"
+                                >
+                                  {t("common.open")}
+                                </Link>
+                              ) : null}
+                              {link.id ? (
+                                <Btn
+                                  variant="danger"
+                                  className="text-xs"
+                                  onClick={() => revokeLink(link.id!)}
+                                >
+                                  {t("pots.revoke")}
+                                </Btn>
+                              ) : null}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </InviteLinkPanel>
+            </Panel>
           ) : null}
 
           <SegmentedTabs
@@ -725,6 +960,10 @@ function ContributionDetailInner() {
           )}
 
           {tab === "pay" && (
+            <>
+            {c.settings?.allOrNothing ? (
+              <Alert tone="teal">{t("pots.allOrNothingPay")}</Alert>
+            ) : null}
             <div className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-2">
             <Panel title={t("pots.declare")}>
@@ -790,39 +1029,32 @@ function ContributionDetailInner() {
                 </Alert>
               ) : (
                 <div className="grid gap-3">
+                  <p className="text-xs text-ink-mute">{t("pots.payMmHint")}</p>
                   <Field label={t("common.amount")}>
-                    <input
-                      className={inputClass}
-                      type="number"
-                      value={mmAmount}
-                      onChange={(e) => setMmAmount(e.target.value)}
-                    />
+                    <div className="relative">
+                      <input
+                        className={`${inputClass} pr-16`}
+                        type="number"
+                        value={mmAmount}
+                        onChange={(e) => {
+                          setMmAmount(e.target.value);
+                          setMontant(e.target.value);
+                        }}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-bold text-ink-mute">
+                        {displayCurrency(c.currency, c.country)}
+                      </span>
+                    </div>
                   </Field>
-                  <Field label={t("tontines.provider")}>
-                    <select
-                      className={inputClass}
-                      value={mmProvider}
-                      onChange={(e) => setMmProvider(e.target.value)}
-                    >
-                      <option value="">{t("tontines.choose")}</option>
-                      {providerList.map((p) => {
-                        const slug = p.slug ?? p.id ?? "";
-                        return (
-                          <option key={slug} value={slug}>
-                            {p.name ?? slug}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </Field>
-                  <Field label={t("tontines.phoneE164")}>
-                    <input
-                      className={inputClass}
-                      value={mmPhone}
-                      onChange={(e) => setMmPhone(e.target.value)}
-                      placeholder="+257…"
-                    />
-                  </Field>
+                  <MmPayFields
+                    country={payMarket.country || c.country || ""}
+                    currency={displayCurrency(c.currency, c.country)}
+                    capability="collection"
+                    provider={mmProvider}
+                    onProvider={setMmProvider}
+                    phone={mmPhone}
+                    onPhone={setMmPhone}
+                  />
                   <Btn
                     disabled={
                       action.busy || !mmProvider || !mmPhone || !mmAmount
@@ -839,15 +1071,25 @@ function ContributionDetailInner() {
                     {t("tontines.feePreview")}
                   </Btn>
                   {mmFee != null && (
-                    <pre className="max-h-32 overflow-auto rounded-xl bg-brand-50 p-2 text-xs">
-                      {JSON.stringify(mmFee, null, 2)}
-                    </pre>
+                    <p className="rounded-xl bg-mint-50 px-3 py-2 text-sm font-semibold text-mint-900">
+                      {t("pots.feeLine", {
+                        fee: String(
+                          mmFee.fee ??
+                            (mmFee as { fees?: number }).fees ??
+                            "—",
+                        ),
+                        total: String(
+                          mmFee.total ?? mmFee.amount ?? mmAmount,
+                        ),
+                      })}
+                    </p>
                   )}
                 </div>
               )}
             </Panel>
           </div>
             </div>
+          </>
           )}
 
           {tab === "money" && (
@@ -878,7 +1120,7 @@ function ContributionDetailInner() {
                   >
                     <div>
                       <p className="font-medium text-brand-900">
-                        {money(cot.montant ?? cot.amount, c.currency ?? "BIF")}
+                        {money(cot.montant ?? cot.amount, displayCurrency(c.currency, c.country))}
                       </p>
                       <p className="text-xs text-brand-600">
                         {cot.paymentMethod ?? "—"} · {cot.createdAt ?? ""}
@@ -936,6 +1178,9 @@ function ContributionDetailInner() {
           </Panel>
 
             <Panel title={t("pots.requestPayout")}>
+              {c.status !== "closed" && c.status !== "archived" ? (
+                <p className="mb-3 text-sm text-brand-800">{t("pots.payoutLocked")}</p>
+              ) : null}
               <div className="grid gap-3">
                 <Field label={t("pots.gross")}>
                   <input
@@ -958,20 +1203,15 @@ function ContributionDetailInner() {
                 </Field>
                 {payoutMethod === "mobile_money" && (
                   <>
-                    <Field label={t("tontines.provider")}>
-                      <input
-                        className={inputClass}
-                        value={payoutProvider}
-                        onChange={(e) => setPayoutProvider(e.target.value)}
-                      />
-                    </Field>
-                    <Field label={t("common.phone")}>
-                      <input
-                        className={inputClass}
-                        value={payoutPhone}
-                        onChange={(e) => setPayoutPhone(e.target.value)}
-                      />
-                    </Field>
+                    <MmPayFields
+                      country={payMarket.country || c.country || ""}
+                      currency={displayCurrency(c.currency, c.country)}
+                      capability="disbursement"
+                      provider={payoutProvider}
+                      onProvider={setPayoutProvider}
+                      phone={payoutPhone}
+                      onPhone={setPayoutPhone}
+                    />
                   </>
                 )}
                 <Field label={t("pots.reason")}>
@@ -984,6 +1224,7 @@ function ContributionDetailInner() {
                 <Btn
                   disabled={
                     action.busy ||
+                    (c.status !== "closed" && c.status !== "archived") ||
                     Number(payoutAmount) <= 0 ||
                     effectivePayoutReason.trim().length < 5
                   }
@@ -1010,8 +1251,31 @@ function ContributionDetailInner() {
                         {p.netAmount != null &&
                           ` ${t("pots.net", { amount: money(p.netAmount, p.currency) })}`}
                       </p>
-                      <p className="text-xs text-brand-600">
-                        {p.method} · {p.reason}
+                      <p className="flex flex-wrap items-center gap-1.5 text-xs text-brand-600">
+                        {p.method === "mobile_money" ? (
+                          <OperatorLogo
+                            slug={
+                              typeof p.destination?.provider === "string"
+                                ? String(p.destination.provider)
+                                : p.provider
+                            }
+                            providerHint={
+                              typeof p.destination?.provider === "string"
+                                ? String(p.destination.provider)
+                                : p.provider
+                            }
+                            size="sm"
+                            showLabel
+                            label={
+                              typeof p.destination?.provider === "string"
+                                ? String(p.destination.provider)
+                                : p.provider ?? "MM"
+                            }
+                          />
+                        ) : (
+                          <span>{p.method}</span>
+                        )}
+                        {p.reason ? <span>· {p.reason}</span> : null}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -1075,126 +1339,6 @@ function ContributionDetailInner() {
           {tab === "people" && (
             <div className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-2">
-            <Panel title={t("pots.invitations")}>
-              <div className="grid gap-3">
-                <Field label={t("common.email")}>
-                  <input
-                    className={inputClass}
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                  />
-                </Field>
-                <Field label={t("common.phone")}>
-                  <input
-                    className={inputClass}
-                    value={invitePhone}
-                    onChange={(e) => setInvitePhone(e.target.value)}
-                  />
-                </Field>
-                <Field label={t("pots.message")}>
-                  <input
-                    className={inputClass}
-                    value={inviteMsg}
-                    onChange={(e) => setInviteMsg(e.target.value)}
-                  />
-                </Field>
-                <div className="flex flex-wrap gap-2">
-                  <Btn
-                    disabled={
-                      action.busy || (!inviteEmail.trim() && !invitePhone.trim())
-                    }
-                    onClick={invite}
-                  >
-                    {t("common.invite")}
-                  </Btn>
-                  <Btn variant="secondary" onClick={createInviteLink}>
-                    {t("pots.createLink")}
-                  </Btn>
-                  <Btn
-                    variant="secondary"
-                    disabled={action.busy}
-                    onClick={() =>
-                      void action.run(async () => {
-                        const data = await bffFetch<{
-                          share?: {
-                            whatsappUrl?: string;
-                            smsUrl?: string;
-                            text?: string;
-                            url?: string;
-                          };
-                          inviteUrl?: string;
-                        }>(`/invitations/share/contribution/${id}`, {
-                          method: "POST",
-                        });
-                        const wa = data.share?.whatsappUrl;
-                        if (wa && typeof window !== "undefined") {
-                          window.open(wa, "_blank", "noopener,noreferrer");
-                        }
-                        if (data.inviteUrl) setLastInviteLink(data.inviteUrl);
-                        return data;
-                      }, { success: t("pots.okLink") })
-                    }
-                  >
-                    WhatsApp
-                  </Btn>
-                  <Btn variant="ghost" onClick={loadInviteLinks}>
-                    {t("pots.listLinks")}
-                  </Btn>
-                  <Link
-                    href="/app/invitations"
-                    className="rounded-xl border border-brand-200 px-3.5 py-2 text-sm font-semibold text-brand-800"
-                  >
-                    {t("pots.myInvites")}
-                  </Link>
-                </div>
-                {lastInviteLink && (
-                  <p className="mt-3 break-all rounded-xl bg-mint-50 p-3 text-xs text-mint-900">
-                    {t("pots.link")} {lastInviteLink}
-                  </p>
-                )}
-                {inviteLinks.length > 0 && (
-                  <ul className="mt-3 divide-y divide-ink/[0.06] text-sm">
-                    {inviteLinks.map((raw, i) => {
-                      const link = raw as {
-                        id?: string;
-                        token?: string;
-                        expiresAt?: string;
-                      };
-                      return (
-                        <li
-                          key={link.id ?? i}
-                          className="flex flex-wrap items-center justify-between gap-2 py-2"
-                        >
-                          <span className="font-mono text-xs">
-                            {(link.token ?? link.id ?? "?").slice(0, 14)}…
-                          </span>
-                          <div className="flex gap-1">
-                            {link.token ? (
-                              <Link
-                                href={`/invite/${link.token}`}
-                                className="text-xs font-semibold text-brand-600"
-                              >
-                                {t("common.open")}
-                              </Link>
-                            ) : null}
-                            {link.id ? (
-                              <Btn
-                                variant="danger"
-                                className="text-xs"
-                                onClick={() => revokeLink(link.id!)}
-                              >
-                                {t("pots.revoke")}
-                              </Btn>
-                            ) : null}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            </Panel>
-
             <Panel title={t("pots.participants")}>
               <div className="flex flex-wrap gap-2">
                 <Btn variant="secondary" onClick={loadParticipants}>
@@ -1230,18 +1374,49 @@ function ContributionDetailInner() {
                 <ul className="mt-3 divide-y divide-ink/[0.06]">
                   {participants.map((p, i) => {
                     const uid = p.userId ?? p.id;
+                    const name = memberDisplayName(
+                      p,
+                      t("common.member"),
+                    );
                     return (
                       <li
                         key={uid ?? i}
-                        className="flex items-center justify-between py-2 text-sm"
+                        className="flex items-center justify-between gap-2 py-2.5 text-sm"
                       >
-                        <span>
-                          {p.fullName ?? uid} · {p.role ?? "member"}
-                        </span>
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <MemberAvatar
+                            name={name}
+                            avatarUrl={p.avatar}
+                            size="sm"
+                            trustRing={
+                              !!(
+                                uid &&
+                                (trustByUser[uid]?.currentStreak ||
+                                  trustByUser[uid]?.level)
+                              )
+                            }
+                          />
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <p className="truncate font-semibold text-ink">
+                                {name}
+                              </p>
+                              {uid ? (
+                                <MemberTrustBadge
+                                  signals={trustByUser[uid]}
+                                  size="xs"
+                                />
+                              ) : null}
+                            </div>
+                            <p className="text-xs text-ink-mute">
+                              {p.role ?? "member"}
+                            </p>
+                          </div>
+                        </div>
                         {uid ? (
                           <Btn
                             variant="danger"
-                            className="text-xs"
+                            className="shrink-0 text-xs"
                             onClick={() => removeParticipant(uid)}
                           >
                             {t("pots.remove")}

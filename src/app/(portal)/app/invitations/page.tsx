@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useI18n } from "@/lib/i18n/context";
+import { bffFetch } from "@/lib/bff-fetch";
 import { useBff } from "@/lib/use-bff";
 import { useAction } from "@/lib/use-action";
 import { normalizeList } from "@/lib/portal-api";
@@ -15,6 +16,10 @@ import {
   PageHeader,
   statusTone,
 } from "@/lib/ui";
+import { MemberAvatar } from "@/components/member-avatar";
+import { MemberTrustBadge } from "@/components/member-trust-badge";
+import { memberDisplayName } from "@/lib/member-display";
+import { useTrustBatch } from "@/lib/use-trust-batch";
 
 type Invitation = {
   id?: string;
@@ -23,6 +28,7 @@ type Invitation = {
   phone?: string;
   contributionId?: string;
   contribution?: { id?: string; title?: string };
+  invitationCode?: string;
   message?: string;
   createdAt?: string;
   token?: string;
@@ -33,6 +39,9 @@ type Invitee = {
   score?: number;
   algorithm?: string;
   displayLabel?: string;
+  displayName?: string;
+  fullName?: string;
+  avatar?: string | null;
 };
 
 type Tab = "received" | "sent";
@@ -60,25 +69,22 @@ export default function InvitationsPage() {
     return raw.filter((u) => u.userId && !marked.has(u.userId));
   }, [invitees.data, marked]);
 
+  const trustByUser = useTrustBatch(inviteeList.map((u) => u.userId));
+
   const accept = (inv: Invitation) => {
-    if (inv.token) {
-      void action.mutate(
-        `/invitations/accept/${inv.token}`,
-        { method: "POST", body: JSON.stringify({}) },
-        {
-          success: t("invitations.accepted"),
-          onDone: () => void received.refresh(),
-        },
-      );
-      return;
-    }
-    if (inv.id) {
-      void action.mutate(
-        `/invitations/${inv.id}`,
-        { method: "GET" },
-        { success: t("invitations.detailLoaded") },
-      );
-    }
+    const code = inv.invitationCode ?? inv.token;
+    if (!code) return;
+    void action.run(async () => {
+      const me = await bffFetch<{ id?: string }>("/users/me");
+      if (!me?.id) throw new Error(t("invite.needAuth"));
+      return bffFetch(`/invitations/accept/${encodeURIComponent(code)}`, {
+        method: "POST",
+        body: JSON.stringify({ userId: me.id }),
+      });
+    }, {
+      success: t("invitations.accepted"),
+      onDone: () => void received.refresh(),
+    });
   };
 
   const resend = (id: string) =>
@@ -101,6 +107,18 @@ export default function InvitationsPage() {
       targetType: "user",
       targetId: u.userId,
       eventType: "invite_sent",
+      servedScore: u.score,
+      algorithm: u.algorithm ?? "adamic_adar",
+    });
+    setMarked((prev) => new Set(prev).add(u.userId!));
+  };
+
+  const refuseInvitee = (u: Invitee) => {
+    if (!u.userId) return;
+    void trackRecoEvent({
+      targetType: "user",
+      targetId: u.userId,
+      eventType: "refuse",
       servedScore: u.score,
       algorithm: u.algorithm ?? "adamic_adar",
     });
@@ -137,12 +155,29 @@ export default function InvitationsPage() {
           </h2>
           <p className="text-xs text-ink-mute">{t("discover.whoInviteHint")}</p>
           <ul className="space-y-2">
-            {inviteeList.map((u) => (
+            {inviteeList.map((u) => {
+              const name = memberDisplayName(u, t("common.member"));
+              return (
               <li
                 key={u.userId}
-                className="flex flex-wrap items-center gap-2 rounded-xl bg-white/80 px-3 py-2"
+                className="flex flex-wrap items-center gap-2 rounded-xl bg-surface/80 px-3 py-2"
               >
-                <span className="font-semibold">{u.displayLabel ?? "?"}</span>
+                <MemberAvatar
+                  name={name}
+                  avatarUrl={u.avatar}
+                  size="sm"
+                  trustRing={
+                    !!(
+                      trustByUser[u.userId!]?.currentStreak ||
+                      trustByUser[u.userId!]?.level
+                    )
+                  }
+                />
+                <span className="font-semibold">{name}</span>
+                <MemberTrustBadge
+                  signals={u.userId ? trustByUser[u.userId] : null}
+                  size="xs"
+                />
                 <span className="text-xs text-ink-mute">
                   {u.score != null
                     ? `${(Number(u.score) * 100).toFixed(0)}%`
@@ -155,6 +190,13 @@ export default function InvitationsPage() {
                 >
                   {t("discover.markInvited")}
                 </Btn>
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-ink-mute hover:text-ink"
+                  onClick={() => refuseInvitee(u)}
+                >
+                  {t("discover.refuseInvitee")}
+                </button>
                 <Link
                   href="/app/contributions"
                   className="text-xs font-semibold text-brand-700"
@@ -162,7 +204,8 @@ export default function InvitationsPage() {
                   {t("discover.inviteOnPot")}
                 </Link>
               </li>
-            ))}
+            );
+            })}
           </ul>
         </section>
       )}
@@ -176,7 +219,7 @@ export default function InvitationsPage() {
             className={`rounded-lg px-3 py-1.5 text-sm ${
               tab === id
                 ? "bg-brand-600 text-white"
-                : "border border-brand-200 bg-white text-brand-800"
+                : "border border-brand-200 bg-surface text-brand-800"
             }`}
           >
             {label}
@@ -217,18 +260,19 @@ export default function InvitationsPage() {
                 {inv.contributionId || inv.contribution?.id ? (
                   <Link
                     href={`/app/contributions/${inv.contributionId ?? inv.contribution?.id}`}
-                    className="rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-semibold text-brand-800"
+                    className="rounded-lg border border-brand-200 bg-surface px-2.5 py-1 text-xs font-semibold text-brand-800"
                   >
                     {t("invitations.pot")}
                   </Link>
                 ) : null}
-                {tab === "received" && (
+                {tab === "received" &&
+                  (inv.invitationCode || inv.token) &&
+                  (inv.status === "pending" || !inv.status) && (
                   <Btn
-                    className="text-xs"
                     disabled={action.busy}
                     onClick={() => accept(inv)}
                   >
-                    {t("invitations.accept")}
+                    {t("invite.accept")}
                   </Btn>
                 )}
                 {tab === "sent" && inv.id && (

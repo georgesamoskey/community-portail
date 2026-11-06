@@ -46,16 +46,18 @@ export default function ReferralLandingPage() {
     };
   }, [code, t]);
 
-  const registerUrl =
-    preview?.registerUrl ||
-    `${process.env.NEXT_PUBLIC_CMS_URL || "http://localhost:3004"}/register?ref=${encodeURIComponent(code)}`;
+  const registerUrl = `/register?ref=${encodeURIComponent(code)}`;
+  const absoluteRegister =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${registerUrl}`
+      : registerUrl;
   const share = africaShareLinks(
     t("viral.refShareText", { code, name: preview?.inviterLabel ?? "" }),
-    registerUrl,
+    absoluteRegister,
   );
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-brand-800 to-mint-800 px-4 py-12 text-white">
+    <div className="flex min-h-screen flex-col items-center justify-center mobile-trust-gradient px-4 py-12 text-white">
       <div className="w-full max-w-md rounded-2.5xl border border-white/15 bg-white/10 p-8 shadow-lift backdrop-blur">
         <p className="text-center text-[11px] font-bold uppercase tracking-wider text-white/70">
           Community

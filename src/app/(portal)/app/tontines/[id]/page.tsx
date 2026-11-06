@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useBff } from "@/lib/use-bff";
 import { useAction } from "@/lib/use-action";
 import { normalizeList } from "@/lib/portal-api";
-import { hasPermission, Permission } from "@/lib/portal-permissions";
 import {
   Alert,
   Badge,
@@ -23,6 +22,24 @@ import {
 } from "@/lib/ui";
 import { markChecklist } from "@/lib/retention";
 import { useI18n } from "@/lib/i18n/context";
+import { LocalDataHint } from "@/components/offline-ui";
+import { MemberAvatar } from "@/components/member-avatar";
+import { MemberTrustBadge } from "@/components/member-trust-badge";
+import { useTrustBatch } from "@/lib/use-trust-batch";
+import { memberDisplayName } from "@/lib/member-display";
+import { MmPayFields } from "@/components/mm-pay-fields";
+import { OperatorPicker } from "@/components/operator-picker";
+import { InviteLinkPanel } from "@/components/invite-link-panel";
+import {
+  marketDial,
+  providerOptionKey,
+  providersPath,
+  railSlug,
+  retargetPhone,
+  type MmProvider,
+} from "@/lib/mm-market";
+import { displayCurrency } from "@/lib/mm-market";
+import { useMarketCountry } from "@/lib/use-market-country";
 
 type Member = {
   id?: string;
@@ -33,6 +50,8 @@ type Member = {
     id?: string;
     firstName?: string;
     lastName?: string;
+    fullName?: string;
+    avatar?: string | null;
     email?: string;
   };
 };
@@ -53,11 +72,13 @@ type TontineDetail = {
   type?: string;
   contributionAmount?: number;
   currency?: string;
+  country?: string;
   seats?: number;
   frequency?: string;
   orderStrategy?: string;
   inviteCode?: string;
   joinCode?: string;
+  invitationCode?: string | null;
   chatRoomId?: string | null;
   memberships?: Member[];
   members?: Member[];
@@ -98,15 +119,26 @@ export default function TontineDetailPage() {
   const params = useParams();
   const id = String(params.id ?? "");
   const router = useRouter();
+  const search = useSearchParams();
+  const openPayOnLaunch =
+    search.get("openPay") === "1" || search.get("openPay") === "true";
   const { data: session } = useSession();
-  const canPay = hasPermission(session?.user?.roles, Permission.PORTAL_PAYMENTS);
+  const canPay = Boolean(session?.user);
   const action = useAction();
   const { t } = useI18n();
 
   const detail = useBff<TontineDetail>(id ? `/tontines/${id}` : null);
+  const payMarket = useMarketCountry(detail.data?.country);
   const rounds = useBff<unknown>(id ? `/tontines/${id}/rounds` : null);
   const providers = useBff<unknown>(
-    canPay ? "/mobile-money/providers?capability=collection" : null,
+    canPay && payMarket.country
+      ? providersPath(payMarket.country, "collection")
+      : null,
+  );
+  const disburseProviders = useBff<unknown>(
+    canPay && payMarket.country
+      ? providersPath(payMarket.country, "disbursement")
+      : null,
   );
 
   const ton = detail.data;
@@ -120,6 +152,38 @@ export default function TontineDetailPage() {
       normalizeList<Member>(ton, ["memberships", "members"]),
     [ton],
   );
+
+  const seatTaken = members.filter((m) =>
+    ["invited", "accepted", "active"].includes((m.status ?? "").toLowerCase()),
+  ).length;
+  const seatAccepted = members.filter((m) =>
+    ["accepted", "active"].includes((m.status ?? "").toLowerCase()),
+  ).length;
+  const seatLimit = ton?.seats ?? 0;
+  const seatsFull = seatLimit > 0 && seatTaken >= seatLimit;
+  const rosterReady =
+    seatLimit > 0 &&
+    seatAccepted === seatLimit &&
+    (ton?.status === "recruiting" || ton?.status === "draft");
+
+  const trustByUser = useTrustBatch(
+    members.map((m) => m.userId ?? m.user?.id ?? m.id),
+  );
+
+  const memberNameByUserId = useMemo(() => {
+    const map = new Map<string, Member>();
+    for (const m of members) {
+      const uid = m.userId ?? m.user?.id ?? m.id;
+      if (uid) map.set(uid, m);
+    }
+    return map;
+  }, [members]);
+
+  const labelForUserId = (userId?: string | null) => {
+    if (!userId) return t("common.member");
+    const m = memberNameByUserId.get(userId);
+    return memberDisplayName(m ?? { userId }, t("common.member"));
+  };
   const roundList = useMemo(() => {
     if (ton?.rounds?.length) return ton.rounds;
     return normalizeList<Round>(rounds.data, ["items", "rounds", "data"]);
@@ -127,14 +191,23 @@ export default function TontineDetailPage() {
 
   const providerList = useMemo(
     () =>
-      normalizeList<{ slug?: string; id?: string; name?: string }>(
+      normalizeList<MmProvider>(
         providers.data,
         ["items", "providers", "data"],
       ),
     [providers.data],
   );
+  const disburseProviderList = useMemo(
+    () =>
+      normalizeList<MmProvider>(
+        disburseProviders.data,
+        ["items", "providers", "data"],
+      ),
+    [disburseProviders.data],
+  );
 
   const [inviteUserId, setInviteUserId] = useState("");
+  const [portalOrigin, setPortalOrigin] = useState("");
   const [searchQ, setSearchQ] = useState("");
   const [searchHits, setSearchHits] = useState<
     Array<{ id?: string; firstName?: string; lastName?: string; email?: string }>
@@ -163,7 +236,7 @@ export default function TontineDetailPage() {
   const [ascaDepositAmount, setAscaDepositAmount] = useState("");
   const [ascaDepositMode, setAscaDepositMode] = useState<"cash" | "mm">("cash");
   const [ascaDepositPhone, setAscaDepositPhone] = useState("");
-  const [ascaDepositProvider, setAscaDepositProvider] = useState("lumicash");
+  const [ascaDepositProvider, setAscaDepositProvider] = useState("");
   const [ascaOpenNext, setAscaOpenNext] = useState(true);
   const [ascaCloseMm, setAscaCloseMm] = useState(false);
   const [shareOutDest, setShareOutDest] = useState<
@@ -172,10 +245,53 @@ export default function TontineDetailPage() {
   const [welfareUserId, setWelfareUserId] = useState("");
   const [welfareAmount, setWelfareAmount] = useState("");
   const [welfareNote, setWelfareNote] = useState("");
+  const dial = payMarket.country ? marketDial(payMarket.country) : "";
+
+  useEffect(() => {
+    setPortalOrigin(window.location.origin);
+  }, []);
+
+  useEffect(() => {
+    const keys = providerList.map(providerOptionKey).filter(Boolean);
+    if (keys.length && !keys.includes(provider)) setProvider(keys[0]);
+    if (keys.length && !keys.includes(ascaDepositProvider)) {
+      setAscaDepositProvider(keys[0]);
+    }
+  }, [providerList, provider, ascaDepositProvider]);
+
+  useEffect(() => {
+    const keys = disburseProviderList.map(providerOptionKey).filter(Boolean);
+    if (keys.length && !keys.includes(disburseProvider)) {
+      setDisburseProvider(keys[0]);
+    }
+  }, [disburseProviderList, disburseProvider]);
+
+  useEffect(() => {
+    if (!dial) return;
+    setPayerPhone((value) => retargetPhone(value, dial));
+    setDisbursePhone((value) => retargetPhone(value, dial));
+    setAscaDepositPhone((value) => retargetPhone(value, dial));
+  }, [dial]);
 
   useEffect(() => {
     markChecklist("opened_tontine");
   }, []);
+
+  useEffect(() => {
+    if (!openPayOnLaunch || payRound != null) return;
+    const list = normalizeList<Round>(rounds.data, ["items", "rounds", "data"]);
+    const open = list.find((r) => String(r.status).toLowerCase() === "open");
+    const idx =
+      open?.index ??
+      ton?.rounds?.find((r) => String(r.status).toLowerCase() === "open")?.index ??
+      list[0]?.index ??
+      ton?.rounds?.[0]?.index ??
+      1;
+    if (idx != null) {
+      setPayRound(Number(idx));
+      setTab("rounds");
+    }
+  }, [openPayOnLaunch, payRound, rounds.data, ton?.rounds]);
 
   useEffect(() => {
     if (payRound != null || disburseRound != null || roundIndexView != null) {
@@ -346,7 +462,7 @@ export default function TontineDetailPage() {
         method: "POST",
         body: JSON.stringify({
           payerUserId,
-          provider,
+          provider: railSlug(provider),
           payerPhone,
         }),
       },
@@ -382,7 +498,7 @@ export default function TontineDetailPage() {
     if (disburseRound == null && !disburseAscaLoanId) return;
     const destination =
       disburseMethod === "mobile_money"
-        ? { provider: disburseProvider, phone: disbursePhone }
+        ? { provider: railSlug(disburseProvider), phone: disbursePhone }
         : disburseMethod === "cash"
           ? { handlerName: "Cash desk", notes: "Remise en main propre" }
           : {
@@ -436,6 +552,7 @@ export default function TontineDetailPage() {
 
   return (
     <div className="space-y-6">
+      <LocalDataHint show={detail.fromCache || rounds.fromCache} />
       <PageHeader
         title={ton?.title ?? ton?.name ?? t("tontines.detailFallback")}
         description={ton?.description ?? t("tontines.detailDesc")}
@@ -443,7 +560,7 @@ export default function TontineDetailPage() {
           <>
             <Link
               href="/app/tontines"
-              className="rounded-xl border border-brand-200 bg-white px-3.5 py-2 text-sm font-semibold text-brand-800"
+              className="rounded-xl border border-brand-200 bg-surface px-3.5 py-2 text-sm font-semibold text-brand-800"
             >
               {t("common.list")}
             </Link>
@@ -481,14 +598,88 @@ export default function TontineDetailPage() {
               <Badge tone="info">{ton.type.toUpperCase()}</Badge>
             ) : null}
             <Badge>
-              {money(ton.contributionAmount, ton.currency ?? "BIF")} / tour
+              {money(ton.contributionAmount, displayCurrency(ton.currency, ton.country))} / tour
             </Badge>
             {ton.frequency ? <Badge tone="info">{ton.frequency}</Badge> : null}
             {ton.seats != null ? <Badge>{ton.seats} places</Badge> : null}
-            {(ton.inviteCode || ton.joinCode) && (
-              <Badge tone="info">{t("common.code")} : {ton.inviteCode ?? ton.joinCode}</Badge>
+            {(ton.invitationCode || ton.inviteCode || ton.joinCode) && (
+              <Badge tone="info">
+                {t("common.code")} : {ton.invitationCode ?? ton.inviteCode ?? ton.joinCode}
+              </Badge>
             )}
           </div>
+          {(() => {
+            const code = ton.invitationCode ?? ton.inviteCode ?? ton.joinCode ?? "";
+            const open =
+              !ton.status || ton.status === "recruiting" || ton.status === "draft";
+            if (!code || !open || seatsFull) return null;
+            const inviteUrl = portalOrigin ? `${portalOrigin}/invite/${code}` : null;
+            const title = ton.title ?? ton.name ?? t("invite.circle");
+            return (
+              <Panel title={t("invite.title")}>
+                <InviteLinkPanel
+                  hint={t("invite.shareHintTontine")}
+                  url={inviteUrl}
+                  busy={!inviteUrl}
+                  shareText={t("invite.shareText", {
+                    title,
+                    url: inviteUrl ?? "",
+                  })}
+                  otherLabel={t("invite.otherMember")}
+                >
+                  <Field label={t("tontines.searchMember")}>
+                    <div className="flex gap-2">
+                      <input
+                        className={inputClass}
+                        value={searchQ}
+                        onChange={(e) => setSearchQ(e.target.value)}
+                        placeholder={t("tontines.searchPlaceholder")}
+                      />
+                      <Btn
+                        variant="secondary"
+                        disabled={!searchQ.trim() || action.busy}
+                        onClick={searchUsers}
+                      >
+                        {t("tontines.searchBtn")}
+                      </Btn>
+                    </div>
+                  </Field>
+                  {searchHits.length > 0 && (
+                    <ul className="max-h-40 space-y-1 overflow-auto text-sm">
+                      {searchHits.map((u) => (
+                        <li key={u.id}>
+                          <button
+                            type="button"
+                            className="w-full rounded-lg px-2 py-1.5 text-left hover:bg-brand-50"
+                            onClick={() => {
+                              if (u.id) setInviteUserId(u.id);
+                            }}
+                          >
+                            {`${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() ||
+                              u.email ||
+                              u.id}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <Field label={t("tontines.userIdInvite")}>
+                    <input
+                      className={inputClass}
+                      value={inviteUserId}
+                      onChange={(e) => setInviteUserId(e.target.value)}
+                    />
+                  </Field>
+                  <Btn
+                    disabled={!inviteUserId || action.busy || seatsFull}
+                    onClick={invite}
+                  >
+                    {t("common.invite")}
+                  </Btn>
+                </InviteLinkPanel>
+              </Panel>
+            );
+          })()}
 
           {ton.type === "asca" && (
             <Panel title="Fonds ASCA">
@@ -497,21 +688,21 @@ export default function TontineDetailPage() {
                   Total :{" "}
                   {money(
                     asca.data?.fundTotal,
-                    asca.data?.currency ?? ton.currency ?? "BIF",
+                    displayCurrency(asca.data?.currency ?? ton.currency, ton.country),
                   )}
                 </Badge>
                 <Badge tone="info">
                   Disponible :{" "}
                   {money(
                     asca.data?.fundAvailable,
-                    asca.data?.currency ?? ton.currency ?? "BIF",
+                    displayCurrency(asca.data?.currency ?? ton.currency, ton.country),
                   )}
                 </Badge>
                 <Badge>
                   Fonds social :{" "}
                   {money(
                     asca.data?.socialFundTotal,
-                    asca.data?.currency ?? ton.currency ?? "BIF",
+                    displayCurrency(asca.data?.currency ?? ton.currency, ton.country),
                   )}
                 </Badge>
                 <Badge tone="info">
@@ -551,23 +742,14 @@ export default function TontineDetailPage() {
                   </select>
                 </Field>
                 {ascaDepositMode === "mm" && (
-                  <>
-                    <Field label={t("tontines.provider")}>
-                      <input
-                        className={inputClass}
-                        value={ascaDepositProvider}
-                        onChange={(e) => setAscaDepositProvider(e.target.value)}
-                        placeholder="lumicash"
-                      />
-                    </Field>
-                    <Field label={t("common.phone")}>
-                      <input
-                        className={inputClass}
-                        value={ascaDepositPhone}
-                        onChange={(e) => setAscaDepositPhone(e.target.value)}
-                      />
-                    </Field>
-                  </>
+                  <MmPayFields
+                    country={payMarket.country || ton.country || ""}
+                    capability="collection"
+                    provider={ascaDepositProvider}
+                    onProvider={setAscaDepositProvider}
+                    phone={ascaDepositPhone}
+                    onPhone={setAscaDepositPhone}
+                  />
                 )}
                 <Btn
                   disabled={
@@ -584,7 +766,7 @@ export default function TontineDetailPage() {
                           method: "POST",
                           body: JSON.stringify({
                             amount: Number(ascaDepositAmount),
-                            provider: ascaDepositProvider,
+                            provider: railSlug(ascaDepositProvider),
                             payerPhone: ascaDepositPhone,
                           }),
                         },
@@ -714,22 +896,21 @@ export default function TontineDetailPage() {
                           className="grid gap-2 sm:grid-cols-3 text-sm"
                         >
                           <span className="text-xs text-ink-mute">
-                            {a.userId?.slice(0, 8)}… ·{" "}
+                            {labelForUserId(a.userId)} ·{" "}
                             {money(
                               a.balance,
-                              asca.data?.currency ?? ton.currency ?? "BIF",
+                              displayCurrency(asca.data?.currency ?? ton.currency, ton.country),
                             )}{" "}
                             · {a.shares ?? 0} parts
                           </span>
-                          <input
-                            className={inputClass}
-                            placeholder="provider"
+                          <OperatorPicker
+                            providers={disburseProviderList}
                             value={shareOutDest[a.userId ?? ""]?.provider ?? ""}
-                            onChange={(e) =>
+                            onChange={(key) =>
                               setShareOutDest((prev) => ({
                                 ...prev,
                                 [a.userId ?? ""]: {
-                                  provider: e.target.value,
+                                  provider: key,
                                   phone: prev[a.userId ?? ""]?.phone ?? "",
                                 },
                               }))
@@ -737,14 +918,14 @@ export default function TontineDetailPage() {
                           />
                           <input
                             className={inputClass}
-                            placeholder="+257…"
+                            placeholder={payMarket.country ? marketDial(payMarket.country) : "+"}
                             value={shareOutDest[a.userId ?? ""]?.phone ?? ""}
                             onChange={(e) =>
                               setShareOutDest((prev) => ({
                                 ...prev,
                                 [a.userId ?? ""]: {
                                   provider:
-                                    prev[a.userId ?? ""]?.provider ?? "lumicash",
+                                    prev[a.userId ?? ""]?.provider ?? "",
                                   phone: e.target.value,
                                 },
                               }))
@@ -764,7 +945,7 @@ export default function TontineDetailPage() {
                             .filter(([, d]) => d.provider && d.phone)
                             .map(([userId, d]) => ({
                               userId,
-                              provider: d.provider,
+                              provider: railSlug(d.provider),
                               phone: d.phone,
                             }))
                         : undefined;
@@ -812,10 +993,10 @@ export default function TontineDetailPage() {
                           className="flex flex-wrap items-center gap-2 text-sm"
                         >
                           <span>
-                            {loan.borrowerUserId?.slice(0, 8)}… ·{" "}
+                            {labelForUserId(loan.borrowerUserId)} ·{" "}
                             {money(
                               loan.principal,
-                              asca.data?.currency ?? ton.currency ?? "BIF",
+                              displayCurrency(asca.data?.currency ?? ton.currency, ton.country),
                             )}
                           </span>
                           <Btn
@@ -881,7 +1062,7 @@ export default function TontineDetailPage() {
                             {loan.borrowerUserId?.slice(0, 8)}… · dû{" "}
                             {money(
                               loan.amountOwed ?? loan.principal,
-                              asca.data?.currency ?? ton.currency ?? "BIF",
+                              displayCurrency(asca.data?.currency ?? ton.currency, ton.country),
                             )}
                           </span>
                           <Btn
@@ -949,10 +1130,10 @@ export default function TontineDetailPage() {
                           className="flex flex-wrap items-center gap-2 text-sm"
                         >
                           <span>
-                            {loan.borrowerUserId?.slice(0, 8)}… ·{" "}
+                            {labelForUserId(loan.borrowerUserId)} ·{" "}
                             {money(
                               loan.principal,
-                              asca.data?.currency ?? ton.currency ?? "BIF",
+                              displayCurrency(asca.data?.currency ?? ton.currency, ton.country),
                             )}
                           </span>
                           <Btn
@@ -1035,7 +1216,7 @@ export default function TontineDetailPage() {
               <Btn variant="secondary" onClick={accept} disabled={action.busy}>
                 {t("tontines.acceptInvite")}
               </Btn>
-              <Btn onClick={start} disabled={action.busy}>
+              <Btn onClick={start} disabled={action.busy || !rosterReady}>
                 {t("tontines.startCycle")}
               </Btn>
               <Btn variant="danger" onClick={cancel} disabled={action.busy}>
@@ -1052,28 +1233,54 @@ export default function TontineDetailPage() {
           {tab === "people" && (
             <div className="space-y-4">
             <Panel title={`${t("tontines.tabMembers")} (${members.length})`}>
+              {seatLimit > 0 ? (
+                <p className="mb-2 text-xs font-semibold text-ink-mute">
+                  {t("tontines.seatCap", { taken: seatTaken, seats: seatLimit })}
+                  {rosterReady ? ` · ${t("tontines.startCycle")}` : ""}
+                </p>
+              ) : null}
               {members.length === 0 ? (
                 <EmptyState>{t("tontines.noMembers")}</EmptyState>
               ) : (
                 <ul className="divide-y divide-brand-100">
                   {members.map((m, i) => {
                     const uid = m.userId ?? m.user?.id ?? m.id;
-                    const label =
-                      `${m.user?.firstName ?? ""} ${m.user?.lastName ?? ""}`.trim() ||
-                      m.user?.email ||
-                      uid ||
-                      t("tontines.memberN", { n: i + 1 });
+                    const label = memberDisplayName(
+                      m,
+                      t("tontines.memberN", { n: i + 1 }),
+                    );
                     return (
                       <li
                         key={uid ?? i}
                         className="flex items-center justify-between gap-2 py-2 text-sm"
                       >
-                        <div>
-                          <p className="font-medium text-brand-900">{label}</p>
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <MemberAvatar
+                            name={label}
+                            avatarUrl={m.user?.avatar}
+                            size="sm"
+                            trustRing={
+                              !!(
+                                (uid && trustByUser[uid]?.currentStreak) ||
+                                (uid && trustByUser[uid]?.level)
+                              )
+                            }
+                          />
+                          <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="font-medium text-brand-900">{label}</p>
+                            {uid ? (
+                              <MemberTrustBadge
+                                signals={trustByUser[uid]}
+                                size="xs"
+                              />
+                            ) : null}
+                          </div>
                           <p className="text-xs text-brand-600">
                             {m.role ?? "member"}
                             {m.status ? ` · ${m.status}` : ""}
                           </p>
+                          </div>
                         </div>
                         {uid ? (
                           <Btn
@@ -1089,58 +1296,6 @@ export default function TontineDetailPage() {
                   })}
                 </ul>
               )}
-
-              <div className="mt-4 space-y-3 border-t border-brand-100 pt-4">
-                <Field label={t("tontines.searchMember")}>
-                  <div className="flex gap-2">
-                    <input
-                      className={inputClass}
-                      value={searchQ}
-                      onChange={(e) => setSearchQ(e.target.value)}
-                      placeholder={t("tontines.searchPlaceholder")}
-                    />
-                    <Btn
-                      variant="secondary"
-                      disabled={!searchQ.trim() || action.busy}
-                      onClick={searchUsers}
-                    >
-                      {t("tontines.searchBtn")}
-                    </Btn>
-                  </div>
-                </Field>
-                {searchHits.length > 0 && (
-                  <ul className="max-h-40 space-y-1 overflow-auto text-sm">
-                    {searchHits.map((u) => (
-                      <li key={u.id}>
-                        <button
-                          type="button"
-                          className="w-full rounded-lg px-2 py-1.5 text-left hover:bg-brand-50"
-                          onClick={() => {
-                            if (u.id) setInviteUserId(u.id);
-                          }}
-                        >
-                          {`${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() ||
-                            u.email ||
-                            u.id}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <Field label={t("tontines.userIdInvite")}>
-                  <input
-                    className={inputClass}
-                    value={inviteUserId}
-                    onChange={(e) => setInviteUserId(e.target.value)}
-                  />
-                </Field>
-                <Btn
-                  disabled={!inviteUserId || action.busy}
-                  onClick={invite}
-                >
-                  {t("common.invite")}
-                </Btn>
-              </div>
             </Panel>
             </div>
           )}
@@ -1373,31 +1528,14 @@ export default function TontineDetailPage() {
                       onChange={(e) => setPayerUserId(e.target.value)}
                     />
                   </Field>
-                  <Field label={t("tontines.provider")}>
-                    <select
-                      className={inputClass}
-                      value={provider}
-                      onChange={(e) => setProvider(e.target.value)}
-                    >
-                      <option value="">{t("tontines.choose")}</option>
-                      {providerList.map((p) => {
-                        const slug = p.slug ?? p.id ?? "";
-                        return (
-                          <option key={slug} value={slug}>
-                            {p.name ?? slug}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </Field>
-                  <Field label={t("tontines.phoneE164")} hint="ex. +25779123456">
-                    <input
-                      className={inputClass}
-                      value={payerPhone}
-                      onChange={(e) => setPayerPhone(e.target.value)}
-                      placeholder="+257…"
-                    />
-                  </Field>
+                  <MmPayFields
+                    country={payMarket.country}
+                    capability="collection"
+                    provider={provider}
+                    onProvider={setProvider}
+                    phone={payerPhone}
+                    onPhone={setPayerPhone}
+                  />
                 </div>
               )}
               <div className="mt-4 flex flex-wrap gap-2">
@@ -1491,21 +1629,14 @@ export default function TontineDetailPage() {
                 </Field>
                 {disburseMethod === "mobile_money" && (
                   <>
-                    <Field label={t("tontines.provider")}>
-                      <input
-                        className={inputClass}
-                        value={disburseProvider}
-                        onChange={(e) => setDisburseProvider(e.target.value)}
-                        placeholder="lumicash"
-                      />
-                    </Field>
-                    <Field label={t("common.phone")}>
-                      <input
-                        className={inputClass}
-                        value={disbursePhone}
-                        onChange={(e) => setDisbursePhone(e.target.value)}
-                      />
-                    </Field>
+                    <MmPayFields
+                      country={payMarket.country}
+                      capability="disbursement"
+                      provider={disburseProvider}
+                      onProvider={setDisburseProvider}
+                      phone={disbursePhone}
+                      onPhone={setDisbursePhone}
+                    />
                   </>
                 )}
               </div>
@@ -1522,23 +1653,14 @@ export default function TontineDetailPage() {
 
           {disburseAscaLoanId != null && (
             <Panel title="Décaissement prêt ASCA (Mobile Money)">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label={t("tontines.provider")}>
-                  <input
-                    className={inputClass}
-                    value={disburseProvider}
-                    onChange={(e) => setDisburseProvider(e.target.value)}
-                    placeholder="lumicash"
-                  />
-                </Field>
-                <Field label={t("common.phone")}>
-                  <input
-                    className={inputClass}
-                    value={disbursePhone}
-                    onChange={(e) => setDisbursePhone(e.target.value)}
-                  />
-                </Field>
-              </div>
+              <MmPayFields
+                country={payMarket.country || ton.country || ""}
+                capability="disbursement"
+                provider={disburseProvider}
+                onProvider={setDisburseProvider}
+                phone={disbursePhone}
+                onPhone={setDisbursePhone}
+              />
               <div className="mt-4 flex gap-2">
                 <Btn
                   disabled={
@@ -1563,7 +1685,7 @@ export default function TontineDetailPage() {
 
           {repayAscaLoanId != null && (
             <Panel title="Remboursement prêt ASCA (Mobile Money)">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3">
                 <Field label="Montant">
                   <input
                     className={inputClass}
@@ -1572,21 +1694,14 @@ export default function TontineDetailPage() {
                     type="number"
                   />
                 </Field>
-                <Field label={t("tontines.provider")}>
-                  <input
-                    className={inputClass}
-                    value={disburseProvider}
-                    onChange={(e) => setDisburseProvider(e.target.value)}
-                    placeholder="lumicash"
-                  />
-                </Field>
-                <Field label={t("common.phone")}>
-                  <input
-                    className={inputClass}
-                    value={disbursePhone}
-                    onChange={(e) => setDisbursePhone(e.target.value)}
-                  />
-                </Field>
+                <MmPayFields
+                  country={payMarket.country || ton.country || ""}
+                  capability="collection"
+                  provider={disburseProvider}
+                  onProvider={setDisburseProvider}
+                  phone={disbursePhone}
+                  onPhone={setDisbursePhone}
+                />
               </div>
               <div className="mt-4 flex gap-2">
                 <Btn
@@ -1603,7 +1718,7 @@ export default function TontineDetailPage() {
                         method: "POST",
                         body: JSON.stringify({
                           amount: Number(repayAscaAmount),
-                          provider: disburseProvider,
+                          provider: railSlug(disburseProvider),
                           payerPhone: disbursePhone,
                         }),
                       },

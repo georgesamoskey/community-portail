@@ -1,9 +1,20 @@
 /** Référentiel multi-pays / multi-langues (aligné eagaseke). */
 
-export const LOCALES = ["fr", "en", "rn", "sw"] as const;
+export const LOCALES = ["fr", "en", "rn", "sw", "ln"] as const;
 export type Locale = (typeof LOCALES)[number];
 
-export const COUNTRIES = ["BI", "CD", "RW", "TZ", "KE", "UG"] as const;
+export const COUNTRIES = [
+  "BI",
+  "CD",
+  "RW",
+  "TZ",
+  "KE",
+  "UG",
+  "SN",
+  "CI",
+  "CG",
+  "NG",
+] as const;
 export type CountryCode = (typeof COUNTRIES)[number];
 
 export const LOCALE_META: Record<
@@ -14,12 +25,14 @@ export const LOCALE_META: Record<
   en: { name: "English", nativeName: "English", bcp47: "en-GB" },
   rn: { name: "Kirundi", nativeName: "Ikirundi", bcp47: "rn-BI" },
   sw: { name: "Swahili", nativeName: "Kiswahili", bcp47: "sw-TZ" },
+  ln: { name: "Lingala", nativeName: "Lingála", bcp47: "ln-CD" },
 };
 
 export const COUNTRY_META: Record<
   CountryCode,
   {
     name: string;
+    flag: string;
     currency: string;
     dial: string;
     languages: readonly Locale[];
@@ -28,6 +41,7 @@ export const COUNTRY_META: Record<
 > = {
   BI: {
     name: "Burundi",
+    flag: "🇧🇮",
     currency: "BIF",
     dial: "+257",
     languages: ["fr", "rn", "en"],
@@ -35,13 +49,15 @@ export const COUNTRY_META: Record<
   },
   CD: {
     name: "DR Congo",
+    flag: "🇨🇩",
     currency: "CDF",
     dial: "+243",
-    languages: ["fr", "en"],
+    languages: ["fr", "sw", "ln", "en"],
     defaultLocale: "fr",
   },
   RW: {
     name: "Rwanda",
+    flag: "🇷🇼",
     currency: "RWF",
     dial: "+250",
     languages: ["fr", "en", "rn"],
@@ -49,6 +65,7 @@ export const COUNTRY_META: Record<
   },
   TZ: {
     name: "Tanzania",
+    flag: "🇹🇿",
     currency: "TZS",
     dial: "+255",
     languages: ["en", "sw"],
@@ -56,6 +73,7 @@ export const COUNTRY_META: Record<
   },
   KE: {
     name: "Kenya",
+    flag: "🇰🇪",
     currency: "KES",
     dial: "+254",
     languages: ["en", "sw"],
@@ -63,9 +81,42 @@ export const COUNTRY_META: Record<
   },
   UG: {
     name: "Uganda",
+    flag: "🇺🇬",
     currency: "UGX",
     dial: "+256",
     languages: ["en", "sw"],
+    defaultLocale: "en",
+  },
+  SN: {
+    name: "Senegal",
+    flag: "🇸🇳",
+    currency: "XOF",
+    dial: "+221",
+    languages: ["fr", "en"],
+    defaultLocale: "fr",
+  },
+  CI: {
+    name: "Côte d'Ivoire",
+    flag: "🇨🇮",
+    currency: "XOF",
+    dial: "+225",
+    languages: ["fr", "en"],
+    defaultLocale: "fr",
+  },
+  CG: {
+    name: "Congo-Brazzaville",
+    flag: "🇨🇬",
+    currency: "XAF",
+    dial: "+242",
+    languages: ["fr", "en"],
+    defaultLocale: "fr",
+  },
+  NG: {
+    name: "Nigeria",
+    flag: "🇳🇬",
+    currency: "NGN",
+    dial: "+234",
+    languages: ["en"],
     defaultLocale: "en",
   },
 };
@@ -128,7 +179,11 @@ export function formatMoney(
     return new Intl.NumberFormat(LOCALE_META[locale].bcp47, {
       style: "currency",
       currency,
-      maximumFractionDigits: currency === "BIF" || currency === "RWF" ? 0 : 2,
+      maximumFractionDigits: ["BIF", "RWF", "XOF", "XAF", "KES", "UGX", "TZS", "NGN"].includes(
+        currency,
+      )
+        ? 0
+        : 2,
     }).format(n);
   } catch {
     return `${n.toLocaleString(LOCALE_META[locale].bcp47)} ${currency}`;

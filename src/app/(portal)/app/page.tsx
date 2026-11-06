@@ -3,15 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
+import { bffFetch } from "@/lib/bff-fetch";
 import { useBff } from "@/lib/use-bff";
-import {
-  initialsFrom,
-  normalizeList,
-  sortRoomsByActivity,
-  type ChatRoom,
-} from "@/lib/portal-api";
-import { cx } from "@/lib/cx";
-import { NextStepCard } from "@/lib/ui";
+import { normalizeList } from "@/lib/portal-api";
 import {
   ONBOARDING_STEPS,
   checklistProgress,
@@ -23,6 +17,43 @@ import {
 import { useI18n } from "@/lib/i18n/context";
 import { ViralGrowthCard } from "@/components/viral-growth-card";
 import { LiveActivityList, type LiveActivityItem } from "@/components/live-activity-list";
+import { MemberTrustBadge } from "@/components/member-trust-badge";
+import {
+  NetworkInviteeRow,
+  type NetworkInvitee,
+} from "@/components/network-invitee-row";
+import {
+  ContributionCard,
+  type ContributionLike,
+  MobileEmpty,
+  MobileHero,
+  SectionLabel,
+  TabFab,
+} from "@/components/mobile-iso";
+
+function asBuckets(data: unknown): {
+  created: ContributionLike[];
+  participated: ContributionLike[];
+} {
+  if (!data || typeof data !== "object") {
+    return { created: [], participated: [] };
+  }
+  const raw = data as Record<string, unknown>;
+  if (Array.isArray(raw.created) || Array.isArray(raw.participated)) {
+    return {
+      created: (raw.created as ContributionLike[]) ?? [],
+      participated: (raw.participated as ContributionLike[]) ?? [],
+    };
+  }
+  return {
+    created: normalizeList<ContributionLike>(data, [
+      "items",
+      "contributions",
+      "data",
+    ]),
+    participated: [],
+  };
+}
 
 export default function PortalHomePage() {
   const { data: session } = useSession();
@@ -31,17 +62,11 @@ export default function PortalHomePage() {
     (session?.user?.name ?? session?.user?.preferred_username ?? "là")
       .split(/\s+/)[0] ?? "là";
 
-  const roomsBff = useBff<unknown>("/chat/rooms");
-  const liveToday = useBff<{ items?: LiveActivityItem[] }>(
-    "/chat/live-activity/me?limit=12",
-  );
   const unreadChat = useBff<{ count?: number }>("/chat/unread");
   const unreadNotif = useBff<{ count?: number }>("/notifications/unread/count");
   const invitations = useBff<unknown>("/invitations/my-invitations");
   const tontines = useBff<unknown>("/tontines/mine");
-  const contributions = useBff<unknown>(
-    "/contributions/my-contributions?limit=20",
-  );
+  const contributions = useBff<unknown>("/contributions/my-contributions");
   const engagement = useBff<{
     currentStreak?: number;
     level?: number;
@@ -49,6 +74,15 @@ export default function PortalHomePage() {
     streakAtRisk?: boolean;
     stats?: { invitationsAccepted?: number };
   }>("/engagement/me");
+  const circleActivity = useBff<{ items?: LiveActivityItem[] }>(
+    "/chat/live-activity/me?limit=12",
+  );
+  const networkInvitees = useBff<unknown>(
+    "/recommendations/invitees?limit=4",
+  );
+  const referralBrief = useBff<{ acceptedCount?: number }>(
+    "/referral/me/cercle",
+  );
 
   const [checklist, setChecklist] = useState(loadChecklist);
   const [visit, setVisit] = useState<{ daysSince?: number; returning: boolean }>(
@@ -60,27 +94,44 @@ export default function PortalHomePage() {
     setVisit(touchLastVisit());
   }, []);
 
-  const rooms = useMemo(() => {
-    const list = Array.isArray(roomsBff.data)
-      ? (roomsBff.data as ChatRoom[])
-      : normalizeList<ChatRoom>(roomsBff.data, ["items", "rooms", "data"]);
-    return sortRoomsByActivity(list).slice(0, 5);
-  }, [roomsBff.data]);
-
-  const inviteCount = useMemo(
-    () =>
-      normalizeList(invitations.data, ["items", "invitations", "data"]).length,
-    [invitations.data],
+  const { created, participated } = useMemo(
+    () => asBuckets(contributions.data),
+    [contributions.data],
   );
+  const myPots = [...created, ...participated].slice(0, 4);
+
+  const pendingInvites = useMemo(() => {
+    return normalizeList<{
+      id?: string;
+      status?: string;
+      invitationCode?: string;
+      token?: string;
+      contribution?: { title?: string };
+      message?: string;
+    }>(invitations.data, ["items", "invitations", "data"]).filter((inv) => {
+      const status = (inv.status ?? "pending").toLowerCase();
+      return status === "pending" && Boolean(inv.invitationCode || inv.token);
+    });
+  }, [invitations.data]);
+  const [accepting, setAccepting] = useState<string | null>(null);
+
+  const acceptInvite = async (code: string) => {
+    setAccepting(code);
+    try {
+      const me = await bffFetch<{ id?: string }>("/users/me");
+      if (!me?.id) return;
+      await bffFetch(`/invitations/accept/${encodeURIComponent(code)}`, {
+        method: "POST",
+        body: JSON.stringify({ userId: me.id }),
+      });
+      await invitations.refresh();
+    } finally {
+      setAccepting(null);
+    }
+  };
   const tontineCount = useMemo(
     () => normalizeList(tontines.data, ["items", "tontines", "data"]).length,
     [tontines.data],
-  );
-  const cagnotteCount = useMemo(
-    () =>
-      normalizeList(contributions.data, ["items", "contributions", "data"])
-        .length,
-    [contributions.data],
   );
 
   const chatUnread = unreadChat.data?.count ?? 0;
@@ -88,78 +139,37 @@ export default function PortalHomePage() {
   const progress = checklistProgress(checklist);
   const showOnboarding = progress.pct < 100;
 
-  const nextActions = useMemo(() => {
-    const actions: Array<{
-      title: string;
-      description: string;
-      href: string;
-      cta: string;
-      tone: "brand" | "mint" | "ink";
-    }> = [];
-    if (chatUnread > 0) {
-      actions.push({
-        title: t("home.msgPending", { n: chatUnread }),
-        description: t("home.msgPendingDesc"),
-        href: "/app/chat",
-        cta: t("home.openChatCta"),
-        tone: "brand",
-      });
-    }
-    if (inviteCount > 0) {
-      actions.push({
-        title: t("home.invitesPending", { n: inviteCount }),
-        description: t("home.invitesDesc"),
-        href: "/app/invitations",
-        cta: t("home.seeInvites"),
-        tone: "mint",
-      });
-    }
-    if (notifUnread > 0) {
-      actions.push({
-        title: t("home.alertsTitle"),
-        description: t("home.alertsDesc"),
-        href: "/app/notifications",
-        cta: t("home.openAlerts"),
-        tone: "ink",
-      });
-    }
-    if (engagement.data?.streakAtRisk) {
-      actions.push({
-        title: t("home.streakDanger"),
-        description: t("home.streakDangerDesc"),
-        href: "/app/engagement",
-        cta: t("home.protectStreak"),
-        tone: "brand",
-      });
-    }
-    if (actions.length === 0) {
-      if (rooms.length > 0) {
-        actions.push({
-          title: t("home.continueChat"),
-          description: t("home.continueChatDesc"),
-          href: `/app/chat?room=${rooms[0].id}`,
-          cta: t("home.resume"),
-          tone: "brand",
-        });
-      } else {
-        actions.push({
-          title: t("home.firstCircle"),
-          description: t("home.firstCircleDesc"),
-          href: "/app/tontines",
-          cta: t("home.start"),
-          tone: "mint",
-        });
-      }
-    }
-    return actions.slice(0, 3);
-  }, [
-    chatUnread,
-    inviteCount,
-    notifUnread,
-    engagement.data?.streakAtRisk,
-    rooms,
-    t,
-  ]);
+  const activityItems = useMemo(() => {
+    const raw = circleActivity.data;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw as LiveActivityItem[];
+    return raw.items ?? [];
+  }, [circleActivity.data]);
+
+  const networkPeople = useMemo(() => {
+    const raw = Array.isArray(networkInvitees.data)
+      ? (networkInvitees.data as NetworkInvitee[])
+      : normalizeList<NetworkInvitee>(networkInvitees.data, [
+          "items",
+          "invitees",
+          "data",
+        ]);
+    return raw.filter((u) => u.userId).slice(0, 3);
+  }, [networkInvitees.data]);
+
+  const acceptedInvites =
+    referralBrief.data?.acceptedCount ??
+    engagement.data?.stats?.invitationsAccepted ??
+    0;
+  const trustSignals = useMemo(
+    () => ({
+      currentStreak: engagement.data?.currentStreak,
+      level: engagement.data?.level,
+      streakAtRisk: engagement.data?.streakAtRisk,
+      ambassador: acceptedInvites >= 5,
+    }),
+    [engagement.data, acceptedInvites],
+  );
 
   const completeStep = (key: OnboardingKey) => {
     markChecklist(key);
@@ -173,255 +183,212 @@ export default function PortalHomePage() {
     : `${t("home.greeting")}, ${first}`;
 
   return (
-    <div className="space-y-8">
-      {/* Hero rétention */}
-      <section className="social-rise relative overflow-hidden rounded-2.5xl bg-gradient-to-br from-ink via-[#1c2230] to-mint-800 p-6 text-white shadow-chat sm:p-8">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-brand-500/30 blur-3xl"
-        />
-        <p className="text-sm font-semibold text-white/70">{greeting}</p>
-        <h1 className="mt-2 max-w-xl font-display text-3xl font-bold tracking-tight sm:text-[2.35rem]">
-          {chatUnread > 0
-            ? t("home.circleWaiting")
-            : t("home.oneMinute")}
-        </h1>
-        <p className="mt-3 max-w-lg text-sm leading-relaxed text-white/75">
-          {t("home.heroSub")}
-        </p>
-
-        <div className="mt-5 flex flex-wrap gap-2">
-          {engagement.data?.currentStreak != null ? (
-            <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-bold backdrop-blur">
-              🔥 {t("home.streakDays", { n: engagement.data.currentStreak })}
-              {engagement.data.streakAtRisk ? ` ${t("home.streakRisk")}` : ""}
-            </span>
-          ) : null}
-          {engagement.data?.level != null ? (
-            <span className="inline-flex rounded-xl bg-white/10 px-3 py-1.5 text-xs font-bold backdrop-blur">
-              {t("home.levelPts", {
-                level: engagement.data.level,
-                pts: engagement.data.totalPoints ?? 0,
-              })}
-            </span>
-          ) : null}
-          <span className="inline-flex rounded-xl bg-white/10 px-3 py-1.5 text-xs font-bold backdrop-blur">
-            {t("home.circles", { n: tontineCount + cagnotteCount })}
-          </span>
-        </div>
-
-        <div className="mt-6 flex flex-wrap gap-3">
+    <div className="relative space-y-5 pb-20">
+      <MobileHero>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-white/75">{greeting}</p>
+            <h1 className="mt-1 font-display text-2xl font-bold tracking-tight">
+              {chatUnread > 0 ? t("home.circleWaiting") : t("home.oneMinute")}
+            </h1>
+          </div>
           <Link
-            href="/app/chat"
-            onClick={() => completeStep("joined_chat")}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-3 text-sm font-bold text-white shadow-lift transition hover:bg-brand-400"
+            href="/app/notifications"
+            className="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white"
+            aria-label={t("nav.notifications")}
           >
-            {chatUnread > 0 ? t("home.openChat") : t("home.openChat")}
-            {chatUnread > 0 ? (
-              <span className="rounded-md bg-ink/25 px-2 py-0.5 text-[10px]">
-                {chatUnread}
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M6 9.5a6 6 0 1 1 12 0c0 4 1.5 5.5 1.5 5.5H4.5S6 13.5 6 9.5Z"
+                stroke="currentColor"
+                strokeWidth="1.75"
+              />
+            </svg>
+            {notifUnread > 0 ? (
+              <span className="absolute -right-0.5 -top-0.5 min-w-[1rem] rounded-md bg-white px-1 text-[9px] font-bold text-brand-700">
+                {notifUnread > 9 ? "9+" : notifUnread}
               </span>
             ) : null}
           </Link>
-          <Link
-            href="/app/discover"
-            className="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-sm font-semibold backdrop-blur transition hover:bg-white/15"
-          >
-            {t("home.discover")}
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="rounded-lg bg-white/15 px-2.5 py-1 text-xs font-bold">
+            {t("home.circles", { n: tontineCount + myPots.length })}
+          </span>
+          <MemberTrustBadge
+            signals={trustSignals}
+            className="[&_span]:bg-white/15 [&_span]:text-white"
+          />
+          {chatUnread > 0 ? (
+            <Link
+              href="/app/chat"
+              className="rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-brand-700"
+            >
+              {t("home.openChat")}
+            </Link>
+          ) : null}
+        </div>
+      </MobileHero>
+
+      {pendingInvites.length > 0 ? (
+        <section className="space-y-2">
+          <SectionLabel>{t("invitations.received")}</SectionLabel>
+          <ul className="space-y-2">
+            {pendingInvites.slice(0, 3).map((inv) => {
+              const code = inv.invitationCode ?? inv.token ?? "";
+              return (
+                <li
+                  key={inv.id ?? code}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-mint-200/70 bg-mint-50/50 px-4 py-3"
+                >
+                  <div>
+                    <p className="font-semibold text-ink">
+                      {inv.contribution?.title ?? t("invitations.title")}
+                    </p>
+                    {inv.message ? (
+                      <p className="mt-0.5 text-sm text-ink-mute">{inv.message}</p>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={accepting === code}
+                    onClick={() => void acceptInvite(code)}
+                    className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                  >
+                    {t("invite.accept")}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <SectionLabel>{t("home.circleActivity")}</SectionLabel>
+          <Link href="/app/chat" className="text-xs font-bold text-brand-600">
+            {t("common.seeAll")}
           </Link>
         </div>
+        {circleActivity.loading && activityItems.length === 0 ? (
+          <p className="text-sm text-ink-mute">{t("common.loading")}</p>
+        ) : activityItems.length === 0 ? (
+          <p className="text-sm text-ink-mute">{t("home.circleActivityEmpty")}</p>
+        ) : (
+          <LiveActivityList items={activityItems.slice(0, 4)} showRoomLink compact />
+        )}
       </section>
 
-      {/* À faire — une chose claire */}
-      <section className="space-y-3">
-        <h2 className="font-display text-xl font-bold tracking-tight text-ink">
-          {t("home.todoNow")}
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {nextActions.map((a) => (
-            <NextStepCard key={a.href + a.title} {...a} />
-          ))}
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <SectionLabel>{t("nav.contributions")}</SectionLabel>
+          <Link
+            href="/app/contributions"
+            className="text-xs font-bold text-brand-600"
+          >
+            {t("common.seeAll")}
+          </Link>
         </div>
+        {contributions.loading && myPots.length === 0 ? (
+          <p className="text-sm text-ink-mute">{t("common.loading")}</p>
+        ) : myPots.length === 0 ? (
+          <MobileEmpty
+            title={t("home.createPot")}
+            hint={t("home.firstCircleDesc")}
+            actionHref="/app/contributions#create"
+            actionLabel={t("home.createShort")}
+          />
+        ) : (
+          <ul className="space-y-2">
+            {myPots.map((c) => (
+              <li key={c.id}>
+                <ContributionCard item={c} />
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
+
+      <Link
+        href="/app/tontines"
+        className="flex items-center justify-between rounded-2xl border border-mint-100 bg-mint-50/70 px-4 py-3.5"
+      >
+        <div>
+          <p className="text-sm font-bold text-mint-900">{t("nav.tontines")}</p>
+          <p className="text-xs text-ink-mute">
+            {t("home.circles", { n: tontineCount })}
+          </p>
+        </div>
+        <span className="text-mint-700" aria-hidden>
+          ›
+        </span>
+      </Link>
+
+      {networkPeople.length > 0 ? (
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <SectionLabel>{t("home.networkPeople")}</SectionLabel>
+              <p className="text-xs text-ink-mute">{t("home.networkPeopleHint")}</p>
+            </div>
+            <Link
+              href="/app/discover"
+              className="text-xs font-bold text-brand-600"
+            >
+              {t("common.seeAll")}
+            </Link>
+          </div>
+          <ul className="space-y-2">
+            {networkPeople.map((u) => (
+              <li key={u.userId}>
+                <NetworkInviteeRow person={u} compact />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <ViralGrowthCard engagement={engagement.data} />
 
-      {/* Onboarding progressif */}
-      {showOnboarding && (
-        <section className="rounded-2.5xl border border-ink/[0.06] bg-surface p-5 shadow-soft">
-          <div className="flex flex-wrap items-end justify-between gap-3">
+      {showOnboarding ? (
+        <section className="rounded-2xl border border-ink/[0.06] bg-surface p-4 shadow-soft">
+          <div className="flex items-end justify-between gap-3">
             <div>
-              <h2 className="font-display text-lg font-bold text-ink">
+              <h2 className="font-display text-base font-bold text-ink">
                 {t("home.firstSteps")}
               </h2>
-              <p className="text-sm text-ink-mute">
+              <p className="text-xs text-ink-mute">
                 {t("home.onboardingHint", {
                   done: progress.done,
                   total: progress.total,
                 })}
               </p>
             </div>
-            <div className="h-2 w-32 overflow-hidden rounded-full bg-surface-sunken">
+            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-sunken">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-brand-500 to-mint-500 transition-all"
+                className="h-full rounded-full bg-brand-500"
                 style={{ width: `${progress.pct}%` }}
               />
             </div>
           </div>
-          <ul className="mt-4 space-y-2">
-            {ONBOARDING_STEPS.map((step) => {
-              const done = checklist[step.key];
-              return (
-                <li key={step.key}>
-                  <Link
-                    href={step.href}
-                    onClick={() => completeStep(step.key)}
-                    className={cx(
-                      "flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-sm transition",
-                      done
-                        ? "bg-mint-50 text-mint-900"
-                        : "bg-surface-sunken/50 text-ink hover:bg-brand-50",
-                    )}
-                  >
-                    <span className="font-medium">
-                      {done ? "✓ " : "○ "}
-                      {t(`home.${step.titleKey}`)}
-                    </span>
-                    {!done ? (
-                      <span className="text-xs font-bold text-brand-600">
-                        {t("common.go")}
-                      </span>
-                    ) : (
-                      <span className="text-xs font-semibold text-mint-700">
-                        {t("common.done")}
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
+          <ul className="mt-3 space-y-1.5">
+            {ONBOARDING_STEPS.filter((step) => !checklist[step.key]).map((step) => (
+              <li key={step.key}>
+                <Link
+                  href={step.href}
+                  onClick={() => completeStep(step.key)}
+                  className="flex items-center justify-between gap-3 rounded-xl bg-surface-sunken/50 px-3 py-2 text-sm text-ink"
+                >
+                  <span className="font-medium">{t(`home.${step.titleKey}`)}</span>
+                </Link>
+              </li>
+            ))}
           </ul>
         </section>
-      )}
+      ) : null}
 
-      {/* Discussions — hub social */}
-      <section className="space-y-4">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <h2 className="font-display text-2xl font-bold tracking-tight text-ink">
-              {t("home.resumeChat")}
-            </h2>
-            <p className="text-sm text-ink-mute">
-              {t("home.chatGesture")}
-            </p>
-          </div>
-          <Link
-            href="/app/chat"
-            className="text-sm font-bold text-brand-600 hover:text-brand-700"
-          >
-            {t("common.seeAll")}
-          </Link>
-        </div>
-
-        {(liveToday.data?.items?.length ?? 0) > 0 ? (
-          <div className="rounded-2.5xl border border-ink/[0.06] bg-surface p-4 shadow-soft">
-            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-ink-mute">
-              Dans tes chats — moments récents
-            </p>
-            <p className="mb-3 text-xs text-ink-mute">
-              Chaque événement ouvre le fil de discussion du cercle.
-            </p>
-            <LiveActivityList
-              items={liveToday.data!.items!}
-              showRoomLink
-              compact
-            />
-          </div>
-        ) : null}
-
-        {roomsBff.loading && rooms.length === 0 ? (
-          <p className="text-sm text-ink-mute">{t("common.loading")}</p>
-        ) : rooms.length === 0 ? (
-          <div className="rounded-2.5xl border border-dashed border-ink/10 bg-surface/80 p-8 text-center">
-            <p className="font-display text-lg font-bold text-ink">
-              {t("home.noRooms")}
-            </p>
-            <p className="mx-auto mt-2 max-w-sm text-sm text-ink-mute">
-              {t("home.noRoomsHint")}
-            </p>
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
-              <Link
-                href="/app/tontines"
-                onClick={() => completeStep("opened_tontine")}
-                className="rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white shadow-lift"
-              >
-                {t("home.createTontine")}
-              </Link>
-              <Link
-                href="/app/contributions"
-                className="rounded-xl border border-ink/[0.1] bg-surface px-4 py-2.5 text-sm font-semibold"
-              >
-                {t("home.createPot")}
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <ul className="space-y-2">
-            {rooms.map((r) => {
-              const label =
-                r.name ??
-                t("home.roomFallback", { id: r.id.slice(0, 8) });
-              return (
-                <li key={r.id}>
-                  <Link
-                    href={`/app/chat?room=${r.id}`}
-                    onClick={() => completeStep("joined_chat")}
-                    className="group flex items-center gap-3 rounded-2xl border border-ink/[0.06] bg-surface px-4 py-3 shadow-soft transition hover:border-brand-200 hover:shadow-lift"
-                  >
-                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-mint-600 text-xs font-bold text-white">
-                      {initialsFrom(label) || "C"}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-ink group-hover:text-brand-600">
-                        {label}
-                      </p>
-                      <p className="truncate text-xs text-ink-mute">
-                        {r.memberCount
-                          ? `${r.memberCount} ${t("common.members")}`
-                          : t("home.groupChat")}
-                      </p>
-                    </div>
-                    <span className="rounded-xl bg-brand-50 px-3 py-1.5 text-xs font-bold text-brand-700 opacity-0 transition group-hover:opacity-100">
-                      {t("home.write")}
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      {/* Raccourcis secondaires — discrets */}
-      <section className="grid gap-2 sm:grid-cols-4">
-        {[
-          { href: "/app/tontines", label: t("nav.tontines"), n: tontineCount },
-          { href: "/app/contributions", label: t("nav.contributions"), n: cagnotteCount },
-          { href: "/app/engagement", label: t("nav.engagement"), n: null },
-          { href: "/app/profile", label: t("nav.profile"), n: null },
-        ].map((x) => (
-          <Link
-            key={x.href}
-            href={x.href}
-            className="rounded-xl border border-ink/[0.06] bg-surface/70 px-4 py-3 text-center text-sm font-semibold text-ink-soft transition hover:border-brand-200 hover:text-ink"
-          >
-            {x.label}
-            {x.n != null ? (
-              <span className="ml-1 text-ink-faint">({x.n})</span>
-            ) : null}
-          </Link>
-        ))}
-      </section>
+      <TabFab href="/app/contributions#create" label={t("home.createShort")} />
     </div>
   );
 }

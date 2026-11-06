@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n/context";
 import { useBff } from "@/lib/use-bff";
@@ -19,6 +19,10 @@ import {
   Panel,
   statusTone,
 } from "@/lib/ui";
+import { TabFab } from "@/components/mobile-iso";
+import { countryLabel } from "@/lib/country-flag";
+import { displayCurrency, marketCurrencies } from "@/lib/mm-market";
+import { useMarketCountry } from "@/lib/use-market-country";
 
 type TontineItem = {
   id?: string;
@@ -29,6 +33,7 @@ type TontineItem = {
   amount?: number;
   contributionAmount?: number;
   currency?: string;
+  country?: string;
   seats?: number;
   memberCount?: number;
   chatRoomId?: string | null;
@@ -54,6 +59,12 @@ export default function TontinesPage() {
   const [frequency, setFrequency] = useState("monthly");
   const [type, setType] = useState("rosca");
   const [joinCode, setJoinCode] = useState("");
+  const market = useMarketCountry();
+  const currencies = marketCurrencies(market.country);
+  const [currency, setCurrency] = useState("");
+  useEffect(() => {
+    setCurrency((cur) => (currencies.includes(cur) ? cur : currencies[0] ?? ""));
+  }, [market.country]);
 
   const create = () =>
     void action.mutate<{ id?: string }>(
@@ -66,8 +77,8 @@ export default function TontinesPage() {
           contributionAmount: Number(contributionAmount),
           seats: Number(seats),
           frequency,
-          currency: "BIF",
-          country: "BI",
+          currency: currency || currencies[0],
+          country: market.country || undefined,
           type,
         }),
       },
@@ -96,7 +107,26 @@ export default function TontinesPage() {
     );
 
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-6 pb-20">
+      <div className="mobile-trust-gradient rounded-2xl p-4 text-white shadow-lift md:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="font-display text-xl font-bold">{t("tontines.title")}</h1>
+            <p className="mt-0.5 text-xs text-white/75">{t("tontines.desc")}</p>
+          </div>
+          <Btn
+            variant="secondary"
+            className="!border-white/30 !bg-white/15 !text-white"
+            onClick={() => {
+              setShowJoin(true);
+              setShowCreate(false);
+            }}
+          >
+            {t("tontines.join")}
+          </Btn>
+        </div>
+      </div>
+      <div className="hidden md:block">
       <PageHeader
         title={t("tontines.title")}
         description={t("tontines.desc")}
@@ -125,6 +155,7 @@ export default function TontinesPage() {
           </>
         }
       />
+      </div>
 
       {(action.error || action.success) && (
         <Alert tone={action.error ? "rose" : "teal"}>
@@ -165,14 +196,37 @@ export default function TontinesPage() {
                 onChange={(e) => setTitle(e.target.value)}
               />
             </Field>
-            <Field label={t("tontines.amountPerRound")}>
-              <input
+            <Field label={t("payments.currency")}>
+              <select
                 className={inputClass}
-                type="number"
-                min={100}
-                value={contributionAmount}
-                onChange={(e) => setContributionAmount(e.target.value)}
-              />
+                value={currency || currencies[0] || ""}
+                onChange={(e) => setCurrency(e.target.value)}
+              >
+                {currencies.map((cur) => (
+                  <option key={cur} value={cur}>
+                    {cur}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label={t("tontines.amountPerRound")}>
+              <div className="relative">
+                <input
+                  className={`${inputClass} pr-16`}
+                  type="number"
+                  min={100}
+                  value={contributionAmount}
+                  onChange={(e) => setContributionAmount(e.target.value)}
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-bold text-ink-mute">
+                  {currency || currencies[0]}
+                </span>
+              </div>
+            </Field>
+            <Field label={t("common.country")}>
+              <p className="text-sm font-semibold text-ink">
+                {market.country ? countryLabel(market.country, { withDial: true }) : ""}
+              </p>
             </Field>
             <Field label={t("tontines.seats")}>
               <input
@@ -242,7 +296,7 @@ export default function TontinesPage() {
           {items.map((item, i) => (
             <li
               key={item.id ?? i}
-              className="flex flex-wrap items-center gap-2 rounded-2xl border border-brand-100 bg-white/80 p-4 shadow-sm transition hover:border-brand-300 hover:shadow-md"
+              className="flex flex-wrap items-center gap-2 rounded-2xl border border-brand-100 bg-surface/80 p-4 shadow-soft transition hover:border-brand-300 hover:shadow-lift"
             >
               <Link
                 href={item.id ? `/app/tontines/${item.id}` : "/app/tontines"}
@@ -258,7 +312,7 @@ export default function TontinesPage() {
                     <p className="mt-1 text-sm text-brand-700/70">
                       {money(
                         item.amount ?? item.contributionAmount,
-                        item.currency ?? "BIF",
+                        displayCurrency(item.currency, item.country),
                       )}
                       {item.memberCount != null &&
                         ` · ${item.memberCount} ${t("common.members")}`}
@@ -297,6 +351,15 @@ export default function TontinesPage() {
           ))}
         </ul>
       )}
+      <div className="md:hidden">
+        <TabFab
+          label={t("home.createShort")}
+          onClick={() => {
+            setShowCreate(true);
+            setShowJoin(false);
+          }}
+        />
+      </div>
     </div>
   );
 }

@@ -53,6 +53,13 @@ export type ChatReaction = {
   reaction: string;
 };
 
+export type SenderTrust = {
+  currentStreak?: number;
+  level?: number;
+  streakAtRisk?: boolean;
+  ambassador?: boolean;
+};
+
 export type ChatMessage = {
   id: string;
   roomId?: string;
@@ -62,6 +69,8 @@ export type ChatMessage = {
   senderId?: string;
   senderName?: string | null;
   senderAvatar?: string | null;
+  senderTrust?: SenderTrust | null;
+  readBy?: Array<{ id?: string; fullName?: string | null }>;
   sender?: {
     id?: string;
     firstName?: string;
@@ -131,6 +140,15 @@ export type NotificationRow = {
   body?: string;
   type?: string;
   isRead?: boolean;
+  read?: boolean;
   readAt?: string | null;
   createdAt?: string;
+  actionUrl?: string;
+  data?: {
+    invitationId?: string;
+    invitationCode?: string;
+    invitationUrl?: string;
+    contributionId?: string;
+    tontineId?: string;
+  };
 };

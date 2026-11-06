@@ -93,3 +93,16 @@ export const ONBOARDING_STEPS: Array<{
     href: "/app/invitations",
   },
 ];
+
+const FULLSCREEN_SEEN = "community-portal:onboarding-fullscreen-v1";
+
+export function shouldShowFullscreenOnboarding(): boolean {
+  if (typeof window === "undefined") return false;
+  if (localStorage.getItem(FULLSCREEN_SEEN)) return false;
+  return checklistProgress(loadChecklist()).pct < 100;
+}
+
+export function markFullscreenOnboardingSeen() {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(FULLSCREEN_SEEN, "1");
+}

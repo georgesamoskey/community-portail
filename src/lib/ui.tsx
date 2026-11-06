@@ -51,10 +51,10 @@ export function Alert({
   children: React.ReactNode;
 }) {
   const styles = {
-    amber: "bg-amber-50 text-amber-950 border-amber-200/80",
+    amber: "border-[color:var(--warn-border)] bg-[var(--warn-bg)] text-[color:var(--warn-fg)]",
     rose: "bg-brand-50 text-brand-900 border-brand-200",
     teal: "bg-mint-50 text-mint-900 border-mint-200",
-    sky: "bg-sky-50 text-sky-950 border-sky-200/80",
+    sky: "border-[color:var(--info-border)] bg-[var(--info-bg)] text-[color:var(--info-fg)]",
   }[tone];
   return (
     <div
@@ -68,7 +68,52 @@ export function Alert({
   );
 }
 
-export function EmptyState({ children }: { children: React.ReactNode }) {
+export function EmptyState({
+  children,
+  title,
+  hint,
+  actionLabel,
+  href,
+  onAction,
+}: {
+  children?: React.ReactNode;
+  title?: string;
+  hint?: string;
+  actionLabel?: string;
+  href?: string;
+  onAction?: () => void;
+}) {
+  if (title) {
+    return (
+      <div className="rounded-2.5xl border border-dashed border-ink/10 bg-surface/70 px-6 py-10 text-center shadow-soft">
+        <p className="font-display text-base font-bold text-ink">{title}</p>
+        {hint ? (
+          <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-ink-mute">
+            {hint}
+          </p>
+        ) : null}
+        {children ? (
+          <div className="mt-2 text-sm text-ink-mute">{children}</div>
+        ) : null}
+        {actionLabel && href ? (
+          <a
+            href={href}
+            className="mt-4 inline-flex rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white shadow-lift"
+          >
+            {actionLabel}
+          </a>
+        ) : actionLabel && onAction ? (
+          <button
+            type="button"
+            onClick={onAction}
+            className="mt-4 inline-flex rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-bold text-white shadow-lift"
+          >
+            {actionLabel}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <div className="rounded-2.5xl border border-dashed border-ink/10 bg-surface/60 px-8 py-10 text-center text-sm leading-relaxed text-ink-mute">
       {children}
@@ -80,13 +125,16 @@ export function Panel({
   title,
   children,
   className,
+  id,
 }: {
   title?: string;
   children: React.ReactNode;
   className?: string;
+  id?: string;
 }) {
   return (
     <section
+      id={id}
       className={cx(
         "rounded-2.5xl border border-ink/[0.06] bg-surface p-5 shadow-soft",
         className,
@@ -169,9 +217,9 @@ export function Badge({
   const styles = {
     neutral: "bg-ink/[0.05] text-ink-soft",
     ok: "bg-mint-100 text-mint-800",
-    warn: "bg-amber-100 text-amber-900",
+    warn: "bg-[var(--warn-bg)] text-[color:var(--warn-fg)]",
     bad: "bg-brand-100 text-brand-800",
-    info: "bg-sky-100 text-sky-900",
+    info: "bg-[var(--info-bg)] text-[color:var(--info-fg)]",
   }[tone];
   return (
     <span

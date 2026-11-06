@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { bffFetch, BffError } from "@/lib/bff-fetch";
+import { cacheBffGet, readCachedBffGet } from "@/lib/offline/bff-cache";
 
 type State<T> = {
   data: T | null;
@@ -9,10 +10,12 @@ type State<T> = {
   refreshing: boolean;
   error: string | null;
   errorStatus: number | null;
+  fromCache: boolean;
 };
 
 /**
  * Charge un endpoint JSON via le BFF.
+ * Hors ligne : repli sur le dernier cache IndexedDB (parité prepare natif).
  */
 export function useBff<T>(
   path: string | null,
@@ -23,6 +26,7 @@ export function useBff<T>(
     refreshing: false,
     error: null,
     errorStatus: null,
+    fromCache: false,
   });
   const aliveRef = useRef(true);
   const prevPathRef = useRef<string | null | undefined>(undefined);
@@ -43,6 +47,7 @@ export function useBff<T>(
       refreshing: false,
       error: null,
       errorStatus: null,
+      fromCache: false,
     });
   }, [path]);
 
@@ -58,17 +63,36 @@ export function useBff<T>(
     try {
       const data = await bffFetch<T>(path);
       if (!aliveRef.current) return;
+      void cacheBffGet(path, data);
       setState({
         data,
         loading: false,
         refreshing: false,
         error: null,
         errorStatus: null,
+        fromCache: false,
       });
     } catch (e) {
       if (!aliveRef.current) return;
       const msg = e instanceof BffError ? e.message : (e as Error).message;
       const errorStatus = e instanceof BffError ? e.status : null;
+      const networkFail =
+        e instanceof BffError &&
+        (e.status === 0 || e.code === "NETWORK_ERROR");
+      if (networkFail) {
+        const cached = await readCachedBffGet<T>(path);
+        if (cached != null && aliveRef.current) {
+          setState({
+            data: cached,
+            loading: false,
+            refreshing: false,
+            error: null,
+            errorStatus: null,
+            fromCache: true,
+          });
+          return;
+        }
+      }
       setState((s) => ({
         ...s,
         loading: false,
@@ -76,6 +100,7 @@ export function useBff<T>(
         error: msg,
         errorStatus,
         data: s.data,
+        fromCache: s.fromCache,
       }));
     }
   }, [path]);

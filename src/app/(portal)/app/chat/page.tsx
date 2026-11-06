@@ -16,7 +16,6 @@ import { useBff } from "@/lib/use-bff";
 import { useChatSocket } from "@/lib/use-chat-socket";
 import {
   chatSenderLabel,
-  initialsFrom,
   normalizeList,
   sortRoomsByActivity,
   type ChatMessage,
@@ -24,8 +23,25 @@ import {
 } from "@/lib/portal-api";
 import { cx } from "@/lib/cx";
 import { useI18n } from "@/lib/i18n/context";
-import { formatDateTime } from "@/lib/ui";
 import { ChatEventCard } from "@/components/chat-event-card";
+import { activityKind } from "@/components/live-activity-list";
+import { resolveSystemEvent, systemEventCopy } from "@/lib/system-event-text";
+import {
+  ChatMessageRow,
+  chatDayKey,
+  chatDayLabel,
+  chatListTime,
+} from "@/components/chat-message-row";
+import {
+  insertMention,
+  mentionHandle,
+  mentionQuery,
+} from "@/lib/chat-mentions";
+import { MemberAvatar, MemberAvatarStack } from "@/components/member-avatar";
+import {
+  MemberTrustBadge,
+  type TrustSignals,
+} from "@/components/member-trust-badge";
 import {
   loadCachedMessages,
   saveCachedMessages,
@@ -36,7 +52,19 @@ import {
   removeChatOutbox,
 } from "@/lib/chat-cache";
 import { ChatMediaBubble } from "@/components/chat-media-bubble";
-import { africaShareLinks } from "@/lib/africa-share";
+import { acquireWakeLock, releaseWakeLock } from "@/lib/native";
+import { VoiceRecorder } from "@/components/voice-recorder";
+import { ChatEmojiPicker } from "@/components/chat-emoji-picker";
+import { ChatAttachSheet } from "@/components/chat-attach-sheet";
+import { compressImage } from "@/lib/secure-store";
+import {
+  flushChatOutbox,
+  OUTBOX_CHANGED,
+  type FlushedChat,
+} from "@/lib/flush-chat-outbox";
+import { SkeletonList } from "@/components/native-pro";
+import { markPushMoment } from "@/components/push-prompt";
+import { RichEmpty } from "@/components/rich-empty";
 
 const QUICK_REACTIONS = ["👍", "❤️", "👏", "🔥", "😂"];
 
@@ -45,38 +73,6 @@ const QUICK_REPLIES_FR = [
   { id: "tomorrow", text: "Je cotise demain 🤝" },
   { id: "nudge", text: "On avance ensemble — qui suit ?" },
 ];
-
-function relativeTime(
-  iso: string | null | undefined,
-  tr: (path: string, params?: Record<string, string | number>) => string,
-): string {
-  if (!iso) return "";
-  const ts = Date.parse(iso);
-  if (!ts) return "";
-  const diff = Date.now() - ts;
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return tr("chat.justNow");
-  if (m < 60) return tr("chat.minAgo", { n: m });
-  const h = Math.floor(m / 60);
-  if (h < 24) return tr("chat.hAgo", { n: h });
-  const d = Math.floor(h / 24);
-  if (d < 7) return tr("chat.dAgo", { n: d });
-  return formatDateTime(ts);
-}
-
-function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
-  const dim = size === "sm" ? "h-8 w-8 text-[10px]" : "h-10 w-10 text-xs";
-  return (
-    <span
-      className={cx(
-        "inline-flex shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 via-brand-600 to-mint-600 font-bold text-white shadow-soft",
-        dim,
-      )}
-    >
-      {initialsFrom(name) || "?"}
-    </span>
-  );
-}
 
 function ChatFallback() {
   const { t } = useI18n();
@@ -110,6 +106,30 @@ function ChatInner() {
 
   const roomsBff = useBff<ChatRoom[] | { items?: ChatRoom[] }>("/chat/rooms");
   const unread = useBff<{ count?: number }>("/chat/unread");
+  const unreadRooms = useBff<{ counts?: Record<string, number> }>(
+    "/chat/unread/by-room",
+  );
+  const engagement = useBff<{
+    currentStreak?: number;
+    level?: number;
+    streakAtRisk?: boolean;
+    stats?: { invitationsAccepted?: number };
+  }>("/engagement/me");
+  const referralBrief = useBff<{ acceptedCount?: number }>(
+    "/referral/me/cercle",
+  );
+  const myTrust = useMemo(() => {
+    const accepted =
+      referralBrief.data?.acceptedCount ??
+      engagement.data?.stats?.invitationsAccepted ??
+      0;
+    return {
+      currentStreak: engagement.data?.currentStreak,
+      level: engagement.data?.level,
+      streakAtRisk: engagement.data?.streakAtRisk,
+      ambassador: accepted >= 5,
+    };
+  }, [engagement.data, referralBrief.data]);
 
   const rooms = useMemo(() => {
     const list = Array.isArray(roomsBff.data)
@@ -126,23 +146,46 @@ function ChatInner() {
   const [query, setQuery] = useState("");
   const [mobileShowThread, setMobileShowThread] = useState(!!roomParam);
   const [showTools, setShowTools] = useState(false);
+  const [showAttach, setShowAttach] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [threadQuery, setThreadQuery] = useState("");
+  const [threadSearch, setThreadSearch] = useState(false);
+  const [roomUnread, setRoomUnread] = useState<Record<string, number>>({});
   const [pollQ, setPollQ] = useState("");
   const [commitAmt, setCommitAmt] = useState("");
   const defaultPollOpts = useMemo(() => `${t("chat.yes")}\n${t("chat.no")}`, [t]);
   const [pollOpts, setPollOpts] = useState(defaultPollOpts);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const stickBottom = useRef(true);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [showJump, setShowJump] = useState(false);
+  const [seenAt, setSeenAt] = useState<Record<string, number>>({});
+  const [previews, setPreviews] = useState<Record<string, string>>({});
 
   const {
     connected,
+    status: wsStatus,
     error: wsError,
     liveMessages,
     clearLive,
     typing,
+    onlineUsers,
+    roomOnlineIds,
+    readsByMessage,
     joinRoom,
     emitTyping,
     markAsRead,
+    reconnect,
   } = useChatSocket(true);
+
+  const [trustByUser, setTrustByUser] = useState<
+    Record<string, TrustSignals>
+  >({});
+  const [outboxCount, setOutboxCount] = useState(0);
+  const [showPresence, setShowPresence] = useState(false);
 
   useEffect(() => {
     if (roomParam) {
@@ -152,6 +195,23 @@ function ChatInner() {
     }
     if (!selectedId && rooms[0]?.id) setSelectedId(rooms[0].id);
   }, [rooms, selectedId, roomParam]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    let alive = true;
+    void acquireWakeLock();
+    const onVis = () => {
+      if (document.visibilityState === "visible" && alive) {
+        void acquireWakeLock();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", onVis);
+      void releaseWakeLock();
+    };
+  }, [selectedId]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -182,18 +242,24 @@ function ChatInner() {
           ordered.map((m) => ({ ...m, roomId: m.roomId ?? selectedId })),
         );
         void pullMeshSync(selectedId, (path) => bffFetch(path));
-        const last = list[0] ?? list[list.length - 1];
-        if (last?.id) {
-          markAsRead(selectedId, last.id);
-          try {
+        const last = [...list].sort((a, b) => {
+          const ta = Date.parse(a.createdAt ?? "") || 0;
+          const tb = Date.parse(b.createdAt ?? "") || 0;
+          return tb - ta;
+        })[0];
+        if (last?.id) markAsRead(selectedId, last.id);
+        try {
+          await bffFetch(`/chat/rooms/${selectedId}/read`, { method: "POST" });
+        } catch {
+          if (last?.id) {
             await bffFetch(`/chat/messages/${last.id}/read`, {
               method: "POST",
-            });
-          } catch {
-            /* optional */
+            }).catch(() => null);
           }
         }
+        setRoomUnread((prev) => ({ ...prev, [selectedId]: 0 }));
         void unread.refresh();
+        void unreadRooms.refresh();
       } catch (e) {
         if (!cancelled && !cached.length) {
           setHistory([]);
@@ -222,6 +288,37 @@ function ChatInner() {
     () => liveMessages.filter((m) => !m.roomId || m.roomId === selectedId),
     [liveMessages, selectedId],
   );
+
+  useEffect(() => {
+    if (unreadRooms.data?.counts) setRoomUnread(unreadRooms.data.counts);
+  }, [unreadRooms.data]);
+
+  const liveCursor = useRef(0);
+  const livePrimed = useRef(false);
+  useEffect(() => {
+    if (!livePrimed.current) {
+      livePrimed.current = true;
+      liveCursor.current = liveMessages.length;
+      return;
+    }
+    if (liveMessages.length < liveCursor.current) {
+      liveCursor.current = liveMessages.length;
+      return;
+    }
+    const fresh = liveMessages.slice(liveCursor.current);
+    liveCursor.current = liveMessages.length;
+    if (!fresh.length) return;
+    setRoomUnread((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const msg of fresh) {
+        if (!msg.roomId || msg.roomId === selectedId || msg.senderId === myId) continue;
+        next[msg.roomId] = (next[msg.roomId] ?? 0) + 1;
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [liveMessages, selectedId, myId]);
 
   const messages = useMemo(() => {
     const byId = new Map<string, ChatMessage>();
@@ -264,6 +361,36 @@ function ChatInner() {
     });
   }, [history, roomLive]);
 
+  const needle = threadQuery.trim();
+  const visibleMessages = useMemo(() => {
+    if (needle.length < 2) return messages;
+    const q = needle.toLowerCase();
+    return messages.filter((m) => (m.content ?? "").toLowerCase().includes(q));
+  }, [messages, needle]);
+
+  useEffect(() => {
+    if (!selectedId || needle.length < 2) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void bffFetch<ChatMessage[]>(
+        `/chat/rooms/${selectedId}/search?q=${encodeURIComponent(needle)}`,
+      )
+        .then((rows) => {
+          if (cancelled || !Array.isArray(rows) || !rows.length) return;
+          setHistory((prev) => {
+            const ids = new Set(prev.map((m) => m.id));
+            const extra = rows.filter((m) => m.id && !ids.has(m.id));
+            return extra.length ? [...extra, ...prev] : prev;
+          });
+        })
+        .catch(() => null);
+    }, 280);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [needle, selectedId]);
+
   useEffect(() => {
     if (selectedId && messages.length) {
       void saveCachedMessages(
@@ -274,8 +401,73 @@ function ChatInner() {
   }, [selectedId, messages]);
 
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem("akiba-chat-seen");
+      if (raw) setSeenAt(JSON.parse(raw) as Record<string, number>);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    setSeenAt((prev) => {
+      const next = { ...prev, [selectedId]: Date.now() };
+      localStorage.setItem("akiba-chat-seen", JSON.stringify(next));
+      return next;
+    });
+    setReplyTo(null);
+    setThreadQuery("");
+    setRecording(false);
+    stickBottom.current = true;
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (!selectedId || !messages.length) return;
+    const last = [...messages].reverse().find((m) => m.content || m.media);
+    const text = last?.content?.trim() || (last?.media ? "📎" : "");
+    if (!text) return;
+    setPreviews((prev) =>
+      prev[selectedId] === text ? prev : { ...prev, [selectedId]: text },
+    );
+  }, [messages, selectedId]);
+
+  useEffect(() => {
+    if (!stickBottom.current) {
+      setShowJump(true);
+      return;
+    }
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, typing, selectedId]);
+
+  useEffect(() => {
+    const ids = [
+      ...new Set(
+        messages
+          .map((m) => m.senderId ?? m.sender?.id)
+          .filter((id): id is string => !!id),
+      ),
+    ].slice(0, 60);
+    if (!ids.length) return;
+    const missing = ids.filter((id) => !trustByUser[id]);
+    if (!missing.length) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await bffFetch<Record<string, TrustSignals>>(
+          `/engagement/trust/batch?ids=${missing.join(",")}`,
+        );
+        if (cancelled || !data || typeof data !== "object") return;
+        setTrustByUser((prev) => ({ ...prev, ...data }));
+      } catch {
+        /* optional */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- trustByUser lu pour skip cache
+  }, [messages]);
 
   const filteredRooms = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -287,89 +479,57 @@ function ChatInner() {
     );
   }, [rooms, query]);
 
-  const flushOutbox = useCallback(async () => {
-    const pending = await listChatOutbox();
-    for (const item of pending) {
-      try {
-        if (item.kind === "file" && item.fileBase64 && item.fileName) {
-          const { base64ToBlob, putLocalMediaBlob } = await import(
-            "@/lib/chat-cache"
-          );
-          const blob = base64ToBlob(
-            item.fileBase64,
-            item.mimeType || "application/octet-stream",
-          );
-          const fd = new FormData();
-          fd.append(
-            "file",
-            new File([blob], item.fileName, {
-              type: item.mimeType || "application/octet-stream",
-            }),
-          );
-          fd.append("clientMessageId", item.clientMessageId);
-          if (item.content) fd.append("caption", item.content);
-          const { bffApi } = await import("@/lib/bff");
-          const res = await fetch(bffApi(`/chat/rooms/${item.roomId}/file`), {
-            method: "POST",
-            credentials: "include",
-            body: fd,
-          });
-          if (!res.ok) throw new Error(`file ${res.status}`);
-          const created = (await res.json()) as ChatMessage;
-          if (created?.id) {
-            void putLocalMediaBlob(item.roomId, created.id, blob);
-          }
-          await removeChatOutbox(item.clientMessageId);
-          setHistory((prev) => {
-            const without = prev.filter(
-              (m) =>
-                m.id !== item.clientMessageId &&
-                m.clientMessageId !== item.clientMessageId,
-            );
-            return [...without, { ...created, clientMessageId: item.clientMessageId }];
-          });
-          continue;
-        }
-
-        const created = await bffFetch<ChatMessage>(
-          `/chat/rooms/${item.roomId}/messages`,
-          {
-            method: "POST",
-            body: JSON.stringify({
-              content: item.content,
-              clientMessageId: item.clientMessageId,
-              replyToId: item.replyToId ?? undefined,
-            }),
-          },
+  const applyFlushed = useCallback((sent: FlushedChat[]) => {
+    if (!sent.length) return;
+    setHistory((prev) => {
+      let next = prev;
+      for (const row of sent) {
+        next = next.filter(
+          (m) =>
+            m.id !== row.clientMessageId &&
+            m.clientMessageId !== row.clientMessageId,
         );
-        await removeChatOutbox(item.clientMessageId);
-        setHistory((prev) => {
-          const without = prev.filter(
-            (m) =>
-              m.id !== item.clientMessageId &&
-              m.clientMessageId !== item.clientMessageId,
-          );
-          return [...without, created];
-        });
-      } catch {
-        const { bumpOutboxAttempt } = await import("@/lib/chat-cache");
-        await bumpOutboxAttempt(item.clientMessageId);
+        next = [...next, { ...row.message, clientMessageId: row.clientMessageId }];
       }
-    }
+      return next;
+    });
+  }, []);
+
+  const flushOutbox = useCallback(async () => {
+    await flushChatOutbox();
   }, []);
 
   useEffect(() => {
-    void flushOutbox();
-    const onOnline = () => void flushOutbox();
+    const refreshOutbox = () => {
+      void listChatOutbox().then((rows) => setOutboxCount(rows.length));
+    };
+    const onOnline = () => {
+      void flushOutbox().then(refreshOutbox);
+    };
+    const onOutbox = (event: Event) => {
+      const sent = (event as CustomEvent<FlushedChat[]>).detail ?? [];
+      applyFlushed(sent);
+      refreshOutbox();
+    };
+    const id = window.setInterval(refreshOutbox, 8_000);
     window.addEventListener("online", onOnline);
-    return () => window.removeEventListener("online", onOnline);
-  }, [flushOutbox]);
+    window.addEventListener(OUTBOX_CHANGED, onOutbox);
+    refreshOutbox();
+    void flushOutbox();
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener(OUTBOX_CHANGED, onOutbox);
+    };
+  }, [flushOutbox, applyFlushed]);
 
   const onSend = useCallback(async () => {
     const content = draft.trim();
     if (!content || !selectedId) return;
+    const quoted = replyTo;
     setSendError(null);
     setDraft("");
+    setReplyTo(null);
     emitTyping(selectedId, false);
 
     const clientMessageId =
@@ -386,6 +546,13 @@ function ChatInner() {
       createdAt: new Date().toISOString(),
       pending: true,
       clientMessageId,
+      replyToId: quoted?.id,
+      replyToPreview: quoted
+        ? {
+            senderName: chatSenderLabel(quoted),
+            snippet: (quoted.content ?? "").slice(0, 80),
+          }
+        : undefined,
     };
     setHistory((prev) => [...prev, optimistic]);
 
@@ -395,7 +562,11 @@ function ChatInner() {
         `/chat/rooms/${selectedId}/messages`,
         {
           method: "POST",
-          body: JSON.stringify({ content, clientMessageId }),
+          body: JSON.stringify({
+            content,
+            clientMessageId,
+            replyToId: quoted?.id,
+          }),
         },
       );
       setHistory((prev) => {
@@ -406,12 +577,14 @@ function ChatInner() {
         return [...without, { ...created, clientMessageId }];
       });
       void removeChatOutbox(clientMessageId);
+      markPushMoment("send");
     } catch (e) {
       await enqueueChatOutbox({
         clientMessageId,
         roomId: selectedId,
         kind: "text",
         content,
+        replyToId: quoted?.id,
         createdAt: new Date().toISOString(),
         attempts: 0,
       });
@@ -433,6 +606,7 @@ function ChatInner() {
     t,
     myId,
     myName,
+    replyTo,
   ]);
 
   const onSendFile = async (file: File) => {
@@ -548,20 +722,71 @@ function ChatInner() {
       ? `/app/tontines/${selected.tontineId}`
       : null;
 
+  const roomMembers = useMemo(() => {
+    return (selected?.members ?? []).map((m) => {
+      const id = m.id ?? m.userId ?? "";
+      const name =
+        m.fullName ||
+        `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() ||
+        t("common.member");
+      return {
+        id,
+        name,
+        avatar: m.avatar,
+        online: !!(id && (onlineUsers[id] || roomOnlineIds.includes(id))),
+      };
+    });
+  }, [selected?.members, onlineUsers, roomOnlineIds, t]);
+
+  const onlineInRoom = useMemo(
+    () => roomMembers.filter((m) => m.online),
+    [roomMembers],
+  );
+  const mentionQ = mentionQuery(draft);
+  const mentionHits = useMemo(() => {
+    if (mentionQ === null) return [];
+    const q = mentionQ.toLowerCase();
+    return roomMembers
+      .filter((m) => m.id && m.id !== myId)
+      .filter((m) => {
+        if (!q) return true;
+        const handle = mentionHandle(m.name).toLowerCase();
+        return m.name.toLowerCase().includes(q) || handle.includes(q);
+      })
+      .slice(0, 6);
+  }, [mentionQ, roomMembers, myId]);
+
   const selectRoom = (id: string) => {
     setSelectedId(id);
     setMobileShowThread(true);
+    setShowPresence(false);
     inputRef.current?.focus();
   };
 
   return (
-    <div className="chat-shell flex h-[calc(100dvh-7.5rem)] flex-col overflow-hidden border-ink/[0.06] bg-surface md:h-[calc(100dvh-8.5rem)] md:rounded-2.5xl md:border md:shadow-chat">
-      <div className="flex items-center justify-between gap-3 border-b border-ink/[0.06] px-4 py-3.5 md:px-5">
+    <div className="chat-shell flex h-[calc(100dvh-4.25rem)] flex-col overflow-hidden border-ink/[0.06] bg-surface max-md:h-[calc(100dvh-3.75rem-env(safe-area-inset-bottom))] md:h-[calc(100dvh-8.5rem)] md:rounded-2.5xl md:border md:shadow-chat">
+      <div
+        className={cx(
+          "flex items-center justify-between gap-2 border-b border-ink/[0.06] px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3.5 md:px-5",
+          !mobileShowThread && "mobile-trust-gradient border-transparent text-white md:bg-none md:!text-ink",
+          mobileShowThread && "hidden md:flex",
+        )}
+      >
         <div>
-          <h1 className="font-display text-xl font-bold tracking-tight text-ink md:text-2xl">
+          <h1
+            className={cx(
+              "font-display text-xl font-bold tracking-tight md:text-2xl",
+              mobileShowThread ? "text-ink" : "text-white md:text-ink",
+            )}
+          >
             {t("chat.title")}
           </h1>
-          <p className="mt-0.5 text-xs text-ink-mute">
+          <p
+            className={cx(
+              "mt-0.5 text-xs",
+              mobileShowThread ? "text-ink-mute" : "text-white/75 md:text-ink-mute",
+            )}
+          >
             {t("chat.subtitle")}
             {(unread.data?.count ?? 0) > 0
               ? ` ${t("chat.unread", { n: unread.data!.count ?? 0 })}`
@@ -569,22 +794,56 @@ function ChatInner() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span
+          <button
+            type="button"
+            onClick={() => {
+              if (wsStatus !== "connected") reconnect();
+            }}
             className={cx(
-              "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-[11px] font-bold",
-              connected
+              "inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-[11px] font-bold transition",
+              wsStatus === "connected"
                 ? "bg-mint-100 text-mint-800"
-                : "bg-amber-100 text-amber-900",
+                : wsStatus === "offline" || wsStatus === "error"
+                  ? "bg-amber-100 text-amber-900"
+                  : "bg-brand-50 text-brand-800",
             )}
+            title={
+              wsStatus !== "connected" ? t("chat.retryWs") : t("chat.online")
+            }
           >
             <span
               className={cx(
-                "online-dot h-1.5 w-1.5 rounded-full",
-                connected ? "bg-mint-500" : "bg-amber-500",
+                "h-1.5 w-1.5 rounded-full",
+                wsStatus === "connected"
+                  ? "online-dot bg-mint-500"
+                  : wsStatus === "reconnecting" || wsStatus === "connecting"
+                    ? "animate-pulse bg-brand-500"
+                    : "bg-amber-500",
               )}
             />
-            {connected ? t("chat.online") : t("chat.offline")}
-          </span>
+            {wsStatus === "connected"
+              ? t("chat.online")
+              : wsStatus === "offline"
+                ? t("chat.offline")
+                : wsStatus === "reconnecting"
+                  ? t("chat.reconnecting")
+                  : wsStatus === "connecting"
+                    ? t("chat.connecting")
+                    : t("chat.retryWs")}
+          </button>
+          <MemberTrustBadge signals={myTrust} size="xs" />
+          {outboxCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => void flushOutbox().then(() =>
+                listChatOutbox().then((rows) => setOutboxCount(rows.length)),
+              )}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-900"
+              title={t("chat.outboxRetry")}
+            >
+              {t("chat.outboxPending", { n: outboxCount })}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void roomsBff.refresh()}
@@ -596,9 +855,18 @@ function ChatInner() {
       </div>
 
       {(wsError || sendError) && (
-        <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-sm text-amber-950">
-          {sendError ?? wsError}
-        </p>
+        <div className="flex items-center justify-between gap-2 border-b border-amber-100 bg-amber-50 px-4 py-2 text-sm text-amber-950">
+          <p className="min-w-0 flex-1 truncate">{sendError ?? wsError}</p>
+          {wsError && !connected ? (
+            <button
+              type="button"
+              className="shrink-0 rounded-lg bg-amber-200/80 px-2.5 py-1 text-xs font-bold"
+              onClick={() => reconnect()}
+            >
+              {t("chat.retryWs")}
+            </button>
+          ) : null}
+        </div>
       )}
 
       <div className="grid min-h-0 flex-1 lg:grid-cols-[300px_1fr]">
@@ -610,7 +878,7 @@ function ChatInner() {
         >
           <div className="border-b border-ink/[0.06] p-3">
             <input
-              className="w-full rounded-xl border border-ink/[0.08] bg-surface px-3.5 py-2.5 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20"
+              className="w-full rounded-full border-0 bg-surface px-4 py-2.5 text-sm text-ink shadow-soft outline-none placeholder:text-ink-faint"
               placeholder={t("chat.searchPh")}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -656,36 +924,64 @@ function ChatInner() {
                 {filteredRooms.map((r) => {
                   const active = selectedId === r.id;
                   const label = r.name ?? t("chat.roomFallback", { id: r.id.slice(0, 8) });
+                  const faces = (r.members ?? [])
+                    .slice(0, 4)
+                    .map((m) => ({
+                      name:
+                        m.fullName ||
+                        `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() ||
+                        "Membre",
+                      avatarUrl: m.avatar,
+                    }));
                   return (
                     <li key={r.id}>
                       <button
                         type="button"
                         onClick={() => selectRoom(r.id)}
                         className={cx(
-                          "flex w-full items-center gap-3 px-3 py-3 text-left transition",
-                          active
-                            ? "bg-surface shadow-soft ring-1 ring-inset ring-brand-200"
-                            : "hover:bg-surface/80",
+                          "chat-list-row flex w-full items-center gap-3 px-3 py-2.5 text-left transition native-pressable",
+                          active ? "bg-brand-50" : "hover:bg-surface/80",
                         )}
                       >
-                        <Avatar name={label} />
+                        {faces.length >= 2 ? (
+                          <MemberAvatarStack members={faces} max={3} />
+                        ) : (
+                          <MemberAvatar name={label} avatarUrl={r.avatar} />
+                        )}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline justify-between gap-2">
-                            <p className="truncate font-semibold text-ink">
+                            <p className="truncate text-[15px] font-semibold text-ink">
                               {label}
                             </p>
-                            <span className="shrink-0 text-[10px] font-medium text-ink-faint">
-                              {relativeTime(r.lastMessageAt ?? r.updatedAt, t)}
+                            <span
+                              className={cx(
+                                "shrink-0 text-[11px] font-medium",
+                                !active && (roomUnread[r.id] ?? 0) > 0
+                                  ? "text-mint-700"
+                                  : "text-ink-faint",
+                              )}
+                            >
+                              {chatListTime(
+                                r.lastMessageAt ?? r.updatedAt,
+                                t("chat.yesterday"),
+                              )}
                             </span>
                           </div>
-                          <p className="truncate text-xs text-ink-mute">
-                            {r.memberCount
-                              ? t("chat.people", { n: r.memberCount })
-                              : r.type ?? "discussion"}
-                            {r.messageCount
-                              ? ` · ${t("chat.messagesCount", { n: r.messageCount })}`
-                              : ""}
-                          </p>
+                          <div className="mt-0.5 flex items-center gap-2">
+                            <p className="min-w-0 flex-1 truncate text-[13px] text-ink-mute">
+                              {previews[r.id] ||
+                                (r.memberCount
+                                  ? t("chat.people", { n: r.memberCount })
+                                  : t("chat.groupConvo"))}
+                            </p>
+                            {!active && (roomUnread[r.id] ?? 0) > 0 ? (
+                              <span className="chat-unread-pill">
+                                {(roomUnread[r.id] ?? 0) > 99
+                                  ? "99+"
+                                  : roomUnread[r.id]}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       </button>
                     </li>
@@ -698,49 +994,88 @@ function ChatInner() {
 
         <section
           className={cx(
-            "chat-thread-bg min-h-0 flex-col",
+            "chat-thread-bg relative min-h-0 flex-col",
             mobileShowThread ? "flex" : "hidden lg:flex",
           )}
         >
-          <header className="flex items-center gap-3 border-b border-ink/[0.06] bg-surface/90 px-3 py-3 backdrop-blur-md sm:px-4">
+          <header className="relative flex items-center gap-2 border-b border-ink/[0.06] bg-surface/95 px-2 py-2.5 backdrop-blur-md sm:gap-3 sm:px-4 sm:py-3">
             <button
               type="button"
-              className="rounded-xl px-2 py-1 text-sm font-semibold text-ink-soft hover:bg-brand-50 lg:hidden"
+              className="min-h-10 min-w-10 shrink-0 rounded-xl px-2 py-1 text-sm font-semibold text-ink-soft hover:bg-brand-50 lg:hidden"
               onClick={() => setMobileShowThread(false)}
+              aria-label={t("common.back")}
             >
               ←
             </button>
             {selected || selectedId ? (
               <>
-                <Avatar
-                  name={selected?.name ?? selectedId?.slice(0, 8) ?? "?"}
+                <MemberAvatar
+                  name={selected?.name ?? t("chat.groupChat")}
+                  avatarUrl={selected?.avatar}
+                  online={onlineInRoom.length > 0}
+                  trustRing={(pulse.data?.circleStreakDays ?? 0) > 0}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-display text-lg font-bold tracking-tight text-ink">
-                    {selected?.name ?? t("chat.roomFallback", { id: selectedId?.slice(0, 8) ?? "" })}
-                  </p>
-                  <p className="truncate text-xs text-ink-mute">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                    <p className="truncate font-display text-base font-bold tracking-tight text-ink sm:text-lg">
+                      {selected?.name ?? t("chat.roomFallback", { id: selectedId?.slice(0, 8) ?? "" })}
+                    </p>
+                    {pulse.data?.circleStreakDays ? (
+                      <span
+                        className="hidden rounded-md bg-mint-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-mint-900 xs:inline sm:inline"
+                        title={t("chat.circleStreak", {
+                          n: pulse.data.circleStreakDays,
+                        })}
+                      >
+                        🔥 {pulse.data.circleStreakDays}j
+                      </span>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="truncate text-left text-xs font-medium text-ink-mute hover:text-brand-600"
+                    onClick={() => setShowPresence((v) => !v)}
+                  >
                     {typing
                       ? `${typing.userName ? `${typing.userName}…` : t("chat.typing")}`
-                      : [
-                          selected?.memberCount
-                            ? t("chat.people", { n: selected.memberCount })
-                            : null,
-                          pulse.data?.circleStreakDays
-                            ? `🔥 ${pulse.data.circleStreakDays}j`
-                            : null,
-                          pulse.data?.progressPct != null
-                            ? `${pulse.data.progressPct}%`
-                            : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ") || t("chat.groupConvo")}
-                  </p>
+                      : onlineInRoom.length > 0
+                        ? t("chat.onlineCount", { n: onlineInRoom.length })
+                        : [
+                            selected?.memberCount
+                              ? t("chat.people", { n: selected.memberCount })
+                              : null,
+                            connected ? t("chat.live") : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || t("chat.groupConvo")}
+                  </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPresence((v) => !v)}
+                  className="hidden shrink-0 items-center gap-1 rounded-xl border border-mint-200 bg-mint-50 px-2.5 py-1.5 text-[11px] font-bold text-mint-900 sm:inline-flex"
+                >
+                  <span className="online-dot h-1.5 w-1.5 rounded-full bg-mint-500" />
+                  {t("chat.onlineCount", { n: onlineInRoom.length })}
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-ink-soft hover:bg-brand-50"
+                  aria-label={t("chat.searchIn")}
+                  onClick={() => {
+                    setThreadSearch((v) => !v);
+                    if (threadSearch) setThreadQuery("");
+                  }}
+                >
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.75" />
+                    <path d="M16 16.5 20 20.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                  </svg>
+                </button>
                 {contextHref ? (
                   <Link
                     href={contextHref}
-                    className="shrink-0 rounded-xl border border-ink/[0.08] bg-surface px-3 py-1.5 text-xs font-bold text-ink hover:border-brand-300 hover:text-brand-600"
+                    className="hidden shrink-0 rounded-xl border border-ink/[0.08] bg-surface px-3 py-1.5 text-xs font-bold text-ink hover:border-brand-300 hover:text-brand-600 sm:inline-flex"
                   >
                     {t("chat.seeGroup")}
                   </Link>
@@ -749,235 +1084,198 @@ function ChatInner() {
             ) : (
               <p className="text-sm text-ink-mute">{t("chat.pick")}</p>
             )}
-          </header>
-
-          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4 sm:px-5">
-            {!selectedId && (
-              <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-mint-600 text-white shadow-lift">
-                  <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" aria-hidden>
-                    <path
-                      d="M7 18.5 4 21V7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v8a2.5 2.5 0 0 1-2.5 2.5H7Z"
-                      stroke="currentColor"
-                      strokeWidth="1.75"
-                    />
-                  </svg>
+            {showPresence && (selected || selectedId) ? (
+              <div className="absolute left-2 right-2 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-2xl border border-ink/[0.08] bg-surface p-3 shadow-lift sm:left-auto sm:right-4 sm:w-72">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-wide text-ink-mute">
+                    {t("chat.presenceTitle")}
+                  </p>
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-ink-mute"
+                    onClick={() => setShowPresence(false)}
+                  >
+                    ✕
+                  </button>
                 </div>
-                <p className="font-display text-xl font-bold tracking-tight text-ink">
-                  {t("chat.threadEmpty")}
-                </p>
-                <p className="max-w-sm text-sm leading-relaxed text-ink-mute">
-                  {t("chat.threadHint")}
-                </p>
+                {roomMembers.length === 0 ? (
+                  <p className="text-xs text-ink-mute">{t("chat.presenceEmpty")}</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {[...roomMembers]
+                      .sort((a, b) => Number(b.online) - Number(a.online))
+                      .map((m) => (
+                        <li key={m.id || m.name} className="flex items-center gap-2">
+                          <MemberAvatar
+                            name={m.name}
+                            avatarUrl={m.avatar}
+                            size="sm"
+                            online={m.online}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-ink">
+                              {m.name}
+                            </p>
+                            <p className="text-[10px] font-medium text-ink-mute">
+                              {m.online ? t("chat.online") : t("chat.offline")}
+                            </p>
+                          </div>
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </div>
+            ) : null}
+          </header>
+          {(() => {
+            const latest = [...messages]
+              .reverse()
+              .find((m) => m.eventType || m.type === "system");
+            if (!latest || !selectedId) return null;
+            const kind = activityKind(
+              resolveSystemEvent(latest.eventType, latest.eventData),
+            );
+            const copy = systemEventCopy(
+              t,
+              latest.eventType,
+              latest.eventData,
+              latest.content,
+            );
+            return (
+              <div className="border-b border-ink/[0.06] bg-surface px-3 py-2 text-xs font-semibold text-ink">
+                {kind.icon} {copy.body}
+              </div>
+            );
+          })()}
+          {threadSearch && selectedId ? (
+            <div className="border-b border-ink/[0.06] bg-surface px-3 py-2">
+              <input
+                className="w-full rounded-full border-0 bg-surface-sunken px-4 py-2 text-sm text-ink outline-none"
+                placeholder={t("chat.searchIn")}
+                value={threadQuery}
+                onChange={(e) => setThreadQuery(e.target.value)}
+              />
+            </div>
+          ) : null}
+
+          <div
+            ref={scrollerRef}
+            className="chat-thread-scroll min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2 py-3 sm:px-4"
+            onScroll={() => {
+              const el = scrollerRef.current;
+              if (!el) return;
+              const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+              stickBottom.current = dist < 96;
+              setShowJump(dist > 180);
+            }}
+          >
+            {!selectedId && (
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
+                <RichEmpty
+                  title={t("chat.threadEmpty")}
+                  hint={t("chat.threadHint")}
+                  actionLabel={t("chat.seeTontines")}
+                  href="/app/tontines"
+                />
               </div>
             )}
             {loadingMsg && (
-              <p className="text-center text-sm text-ink-mute">
-                {t("chat.loadingMsgs")}
-              </p>
-            )}
-            {!loadingMsg && messages.length === 0 && selectedId && (
-              <div className="mx-auto max-w-sm rounded-2.5xl border border-dashed border-ink/10 bg-surface/80 p-6 text-center shadow-soft">
-                <p className="font-display font-bold text-ink">
-                  {t("chat.startConvo")}
-                </p>
-                <p className="mt-1.5 text-sm text-ink-mute">
-                  {t("chat.startHint")}
-                </p>
+              <div className="space-y-3 p-2">
+                <SkeletonList n={3} />
               </div>
             )}
-            {messages.map((m, idx) => {
+            {!loadingMsg && needle.length >= 2 && visibleMessages.length === 0 && (
+              <p className="py-8 text-center text-sm text-ink-mute">{t("chat.noHit")}</p>
+            )}
+            {!loadingMsg && messages.length === 0 && selectedId && needle.length < 2 && (
+              <RichEmpty
+                title={t("chat.startConvo")}
+                hint={t("chat.startHint")}
+                actionLabel={t("chat.inviteCta")}
+                href="/app/invitations"
+                className="mx-auto max-w-sm"
+              />
+            )}
+            {visibleMessages.map((m, idx) => {
               const mine =
                 !!myId &&
                 (m.senderId === myId || m.sender?.id === myId);
-              const label = chatSenderLabel(m);
-              const prev = messages[idx - 1];
+              const senderKey = m.senderId ?? m.sender?.id ?? "";
+              const prev = visibleMessages[idx - 1];
               const sameAuthor =
-                prev &&
-                (prev.senderId ?? prev.sender?.id) ===
-                  (m.senderId ?? m.sender?.id);
+                !!prev &&
+                !prev.eventType &&
+                prev.type !== "system" &&
+                (prev.senderId ?? prev.sender?.id) === senderKey &&
+                chatDayKey(prev.createdAt) === chatDayKey(m.createdAt);
               const isSystem = !!m.eventType || m.type === "system";
-              const reactionMap = new Map<string, number>();
-              for (const r of m.reactions ?? []) {
-                reactionMap.set(
-                  r.reaction,
-                  (reactionMap.get(r.reaction) ?? 0) + 1,
-                );
-              }
+              const showDay =
+                !prev || chatDayKey(prev.createdAt) !== chatDayKey(m.createdAt);
+              const day = showDay ? (
+                <div key={`${m.id}-day`} className="my-3 flex justify-center">
+                  <span className="rounded-lg bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-ink-soft shadow-soft">
+                    {chatDayLabel(m.createdAt, t)}
+                  </span>
+                </div>
+              ) : null;
 
               if (isSystem) {
                 return (
-                  <ChatEventCard
-                    key={m.id}
-                    message={m}
-                    highlight={
-                      pulse.data?.pinnedMessageId != null &&
-                      pulse.data.pinnedMessageId === m.id
-                    }
-                  />
+                  <div key={m.id}>
+                    {day}
+                    <ChatEventCard
+                      message={m}
+                      highlight={
+                        pulse.data?.pinnedMessageId != null &&
+                        pulse.data.pinnedMessageId === m.id
+                      }
+                    />
+                  </div>
                 );
               }
 
               return (
-                <div
-                  key={m.id}
-                  className={cx(
-                    "chat-msg group flex gap-2",
-                    mine ? "flex-row-reverse" : "flex-row",
-                    sameAuthor ? "mt-0.5" : "mt-3",
-                    m.pending && "opacity-70",
-                    m.failed && "opacity-50",
-                  )}
-                >
-                  {!mine && !sameAuthor ? (
-                    <Avatar name={label} size="sm" />
-                  ) : (
-                    <span className="w-8 shrink-0" />
-                  )}
-                  <div className="max-w-[min(85%,28rem)]">
-                    {!mine && !sameAuthor && (
-                      <p className="mb-0.5 px-1 text-[11px] font-bold text-ink-soft">
-                        {label}
-                      </p>
-                    )}
-                    <div
-                      className={cx(
-                        "relative rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
-                        mine
-                          ? "rounded-br-md bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-lift"
-                          : "rounded-bl-md bg-surface text-ink shadow-soft ring-1 ring-ink/[0.05]",
-                      )}
-                    >
-                      {m.replyToPreview ? (
-                        <p
-                          className={cx(
-                            "mb-1 border-l-2 pl-2 text-[11px] opacity-80",
-                            mine ? "border-white/50" : "border-brand-300",
-                          )}
-                        >
-                          {m.replyToPreview.senderName}:{" "}
-                          {m.replyToPreview.snippet}
-                        </p>
-                      ) : null}
-                      {m.media && selectedId ? (
-                        <ChatMediaBubble
-                          roomId={m.roomId ?? selectedId}
-                          messageId={m.id}
-                          media={m.media}
-                          mine={mine}
-                          onRestored={(updated) => {
-                            const u = updated as typeof m;
-                            if (u?.id) {
-                              setHistory((prev) =>
-                                prev.map((x) => (x.id === u.id ? { ...x, ...u } : x)),
-                              );
-                            }
-                          }}
-                        />
-                      ) : null}
-                      <p className="whitespace-pre-wrap">{m.content}</p>
-                      <p
-                        className={cx(
-                          "mt-1 text-[10px] font-medium",
-                          mine ? "text-white/70" : "text-ink-faint",
-                        )}
-                      >
-                        {m.createdAt
-                          ? formatDateTime(m.createdAt).split(", ").pop() ?? formatDateTime(m.createdAt)
-                          : ""}
-                      </p>
-                      <div
-                        className={cx(
-                          "absolute -bottom-3 flex gap-0.5 opacity-0 transition group-hover:opacity-100",
-                          mine ? "right-2" : "left-2",
-                        )}
-                      >
-                        {QUICK_REACTIONS.map((emoji) => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            className="rounded-lg bg-surface px-1.5 py-0.5 text-xs shadow-soft ring-1 ring-ink/[0.06] hover:bg-brand-50"
-                            onClick={() => void react(m.id, emoji)}
-                            title={t("chat.react")}
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                        <button
-                          type="button"
-                          className="rounded-lg bg-surface px-1.5 py-0.5 text-[10px] font-bold shadow-soft ring-1 ring-ink/[0.06] hover:bg-brand-50"
-                          title={t("chat.pin")}
-                          onClick={() =>
-                            void bffFetch(`/chat/rooms/${selectedId}/pin`, {
-                              method: "PUT",
-                              body: JSON.stringify({ messageId: m.id }),
-                            }).catch(() => null)
-                          }
-                        >
-                          {t("chat.pin")}
-                        </button>
-                        {mine ? (
-                          <button
-                            type="button"
-                            className="rounded-lg bg-surface px-1.5 py-0.5 text-[10px] font-bold text-rose-700 shadow-soft ring-1 ring-ink/[0.06]"
-                            title={t("chat.delete")}
-                            onClick={() =>
-                              void bffFetch(`/chat/messages/${m.id}`, {
-                                method: "DELETE",
-                              }).then(() =>
-                                setHistory((prev) =>
-                                  prev.filter((x) => x.id !== m.id),
-                                ),
-                              )
-                            }
-                          >
-                            {t("chat.delete")}
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                    {m.poll?.options?.length ? (
-                      <div className="mt-2 space-y-1">
-                        {m.poll.options.map((opt, oi) => (
-                          <button
-                            key={oi}
-                            type="button"
-                            className="block w-full rounded-lg bg-surface px-2 py-1 text-left text-xs ring-1 ring-ink/[0.06] hover:bg-brand-50"
-                            onClick={() =>
-                              void bffFetch(
-                                `/chat/messages/${m.id}/poll/vote`,
-                                {
-                                  method: "POST",
-                                  body: JSON.stringify({ optionIndex: oi }),
-                                },
-                              )
-                            }
-                          >
-                            {typeof opt === "string" ? opt : String(opt)}
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                    {reactionMap.size > 0 && (
-                      <div
-                        className={cx(
-                          "mt-2 flex flex-wrap gap-1",
-                          mine ? "justify-end" : "justify-start",
-                        )}
-                      >
-                        {[...reactionMap.entries()].map(([emoji, count]) => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            onClick={() => void react(m.id, emoji)}
-                            className="rounded-lg bg-surface px-2 py-0.5 text-[11px] shadow-soft ring-1 ring-ink/[0.06]"
-                          >
-                            {emoji} {count > 1 ? count : ""}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                <div key={m.id}>
+                  {day}
+                  <ChatMessageRow
+                    message={m}
+                    mine={mine}
+                    sameAuthor={sameAuthor}
+                    online={!!(senderKey && onlineUsers[senderKey])}
+                    trust={mine ? myTrust : trustByUser[senderKey] ?? m.senderTrust ?? null}
+                    myTrust={myTrust}
+                    roomId={selectedId ?? m.roomId ?? ""}
+                    read={
+                      (readsByMessage[m.id]?.length ?? m.readBy?.length ?? 0) > 0
+                    }
+                    mark={needle.length >= 2 ? needle : undefined}
+                    t={t}
+                    onReact={(id, emoji) => void react(id, emoji)}
+                    onReply={setReplyTo}
+                    onPin={(id) => {
+                      if (!selectedId) return;
+                      void bffFetch(`/chat/rooms/${selectedId}/pin`, {
+                        method: "PUT",
+                        body: JSON.stringify({ messageId: id }),
+                      }).catch(() => null);
+                    }}
+                    onDelete={(id) => {
+                      void bffFetch(`/chat/messages/${id}`, { method: "DELETE" }).then(
+                        () => setHistory((prev) => prev.filter((x) => x.id !== id)),
+                      );
+                    }}
+                    onVote={(id, oi) => {
+                      void bffFetch(`/chat/messages/${id}/poll/vote`, {
+                        method: "POST",
+                        body: JSON.stringify({ optionIndex: oi }),
+                      });
+                    }}
+                    onMedia={(updated) => {
+                      setHistory((prev) =>
+                        prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)),
+                      );
+                    }}
+                  />
                 </div>
               );
             })}
@@ -995,15 +1293,29 @@ function ChatInner() {
             )}
             <div ref={bottomRef} />
           </div>
+          {showJump ? (
+            <button
+              type="button"
+              className="absolute bottom-28 right-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-surface text-lg text-ink shadow-lift ring-1 ring-ink/[0.06]"
+              aria-label={t("chat.scrollDown")}
+              onClick={() => {
+                stickBottom.current = true;
+                setShowJump(false);
+                bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+              }}
+            >
+              ↓
+            </button>
+          ) : null}
 
-          <footer className="border-t border-ink/[0.06] bg-surface p-3 sm:p-4">
+          <footer className="chat-composer border-t border-ink/[0.06] bg-[#f0f2f5] p-1.5 sm:p-2 dark:bg-surface">
             {selectedId ? (
-              <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1">
+              <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {QUICK_REPLIES_FR.map((q) => (
                   <button
                     key={q.id}
                     type="button"
-                    className="shrink-0 rounded-full border border-ink/[0.08] bg-surface-sunken/50 px-3 py-1 text-xs font-semibold text-ink hover:border-brand-300 hover:bg-brand-50"
+                    className="shrink-0 rounded-full border border-ink/[0.08] bg-surface-sunken/50 px-3 py-1.5 text-xs font-semibold text-ink hover:border-brand-300 hover:bg-brand-50"
                     onClick={() => {
                       setDraft(q.text);
                       inputRef.current?.focus();
@@ -1014,27 +1326,10 @@ function ChatInner() {
                 ))}
                 <Link
                   href="/app/invitations"
-                  className="shrink-0 rounded-full border border-mint-200 bg-mint-50 px-3 py-1 text-xs font-bold text-mint-900"
+                  className="shrink-0 rounded-full border border-mint-200 bg-mint-50 px-3 py-1.5 text-xs font-bold text-mint-900"
                 >
-                  + Inviter
+                  {t("chat.inviteCta")}
                 </Link>
-                {selected?.contributionId || selected?.tontineId ? (
-                  <a
-                    href={
-                      africaShareLinks(
-                        `Rejoins notre cercle « ${selected?.name ?? "Akiba One"} » sur Community`,
-                        typeof window !== "undefined"
-                          ? `${window.location.origin}/app/chat?room=${selectedId}`
-                          : "",
-                      ).whatsapp
-                    }
-                    target="_blank"
-                    rel="noreferrer"
-                    className="shrink-0 rounded-full bg-[#25D366] px-3 py-1 text-xs font-bold text-white"
-                  >
-                    WhatsApp
-                  </a>
-                ) : null}
               </div>
             ) : null}
             {showTools && selectedId && (
@@ -1106,8 +1401,107 @@ function ChatInner() {
                 </div>
               </div>
             )}
+            {mentionHits.length > 0 ? (
+              <ul className="mb-2 overflow-hidden rounded-2xl bg-surface shadow-lift ring-1 ring-ink/[0.08]">
+                {mentionHits.map((member) => (
+                  <li key={member.id}>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left hover:bg-brand-50"
+                      onClick={() => {
+                        setDraft((value) => insertMention(value, member.name));
+                        inputRef.current?.focus();
+                      }}
+                    >
+                      <MemberAvatar
+                        name={member.name}
+                        avatarUrl={member.avatar}
+                        size="sm"
+                        online={member.online}
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-ink">
+                          {member.name}
+                        </span>
+                        <span className="text-xs font-bold text-brand-700">
+                          @{mentionHandle(member.name)}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {replyTo ? (
+              <div className="mb-2 flex items-start gap-2 rounded-xl border-l-4 border-brand-500 bg-brand-50 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-brand-700">
+                    {chatSenderLabel(replyTo)}
+                  </p>
+                  <p className="truncate text-xs text-ink-mute">
+                    {replyTo.content || t("chat.attach")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="text-sm font-bold text-ink-mute"
+                  onClick={() => setReplyTo(null)}
+                  aria-label={t("common.cancel")}
+                >
+                  ✕
+                </button>
+              </div>
+            ) : null}
+            {showAttach && selectedId ? (
+              <ChatAttachSheet
+                camera={t("chat.camera")}
+                gallery={t("chat.gallery")}
+                document={t("chat.document")}
+                poll={t("chat.poll")}
+                onPoll={() => {
+                  setShowAttach(false);
+                  setShowTools(true);
+                }}
+                onFile={(file) => {
+                  setShowAttach(false);
+                  void (async () => {
+                    const ready = await compressImage(file);
+                    await onSendFile(ready);
+                  })();
+                }}
+              />
+            ) : null}
+            {showEmoji && selectedId ? (
+              <ChatEmojiPicker
+                label={t("chat.emoji")}
+                onPick={(emoji) => {
+                  const el = inputRef.current;
+                  const start = el?.selectionStart ?? draft.length;
+                  const end = el?.selectionEnd ?? draft.length;
+                  const next = draft.slice(0, start) + emoji + draft.slice(end);
+                  setDraft(next);
+                  const pos = start + emoji.length;
+                  requestAnimationFrame(() => {
+                    el?.focus();
+                    el?.setSelectionRange(pos, pos);
+                  });
+                }}
+              />
+            ) : null}
+            {recording && selectedId ? (
+              <VoiceRecorder
+                cancelLabel={t("common.cancel")}
+                sendLabel={t("chat.send")}
+                mediaTitle={t("chat.voice")}
+                onCancel={() => setRecording(false)}
+                onRecorded={(file) => {
+                  setRecording(false);
+                  void onSendFile(file);
+                }}
+              />
+            ) : (
             <form
-              className="flex items-end gap-2"
+              className="flex items-end gap-1.5"
               onSubmit={(e) => {
                 e.preventDefault();
                 void onSend();
@@ -1115,15 +1509,19 @@ function ChatInner() {
             >
               <button
                 type="button"
-                className="inline-flex h-[46px] w-[46px] items-center justify-center rounded-2xl border border-ink/[0.08] text-xs font-bold text-ink-soft hover:bg-brand-50"
+                className="inline-flex h-11 w-9 shrink-0 items-center justify-center text-xl text-ink-soft"
                 title={t("chat.tools")}
-                onClick={() => setShowTools((v) => !v)}
+                aria-label={t("chat.tools")}
+                onClick={() => {
+                  setShowAttach((v) => !v);
+                  setShowEmoji(false);
+                }}
               >
                 +
               </button>
-              <label className="inline-flex h-[46px] w-[46px] cursor-pointer items-center justify-center rounded-2xl border border-ink/[0.08] text-ink-soft hover:bg-brand-50">
+              <label className="inline-flex h-11 w-9 shrink-0 cursor-pointer items-center justify-center text-ink-soft">
                 <span className="sr-only">{t("chat.attach")}</span>
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden>
                   <path
                     d="M21 12.5V16a5 5 0 0 1-10 0V7a3 3 0 1 1 6 0v8.5a1.5 1.5 0 1 1-3 0V8"
                     stroke="currentColor"
@@ -1137,37 +1535,73 @@ function ChatInner() {
                   disabled={!selectedId}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) void onSendFile(f);
+                    if (f) {
+                      void (async () => {
+                        const compressed = await compressImage(f);
+                        await onSendFile(compressed);
+                      })();
+                    }
                     e.target.value = "";
                   }}
                 />
               </label>
+              <button
+                type="button"
+                className="inline-flex h-11 w-9 shrink-0 items-center justify-center text-lg"
+                aria-label={t("chat.emoji")}
+                disabled={!selectedId}
+                onClick={() => {
+                  setShowEmoji((v) => !v);
+                  setShowAttach(false);
+                }}
+              >
+                😊
+              </button>
               <input
                 ref={inputRef}
-                className="flex-1 rounded-2xl border border-ink/[0.08] bg-surface-sunken/50 px-4 py-3 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-brand-400 focus:bg-surface focus:ring-2 focus:ring-brand-500/20"
-                placeholder={
-                  selectedId
-                    ? myName
-                      ? t("chat.writeAs", { name: myName.split(" ")[0] })
-                      : t("chat.yourMsg")
-                    : t("chat.pick")
-                }
+                className="min-w-0 flex-1 rounded-3xl border-0 bg-surface px-4 py-2.5 text-base text-ink shadow-soft outline-none placeholder:text-ink-faint"
+                placeholder={selectedId ? t("chat.yourMsg") : t("chat.pick")}
                 value={draft}
                 disabled={!selectedId}
                 onChange={(e) => {
                   setDraft(e.target.value);
-                  if (selectedId)
-                    emitTyping(selectedId, e.target.value.length > 0);
+                  if (selectedId) emitTyping(selectedId, e.target.value.length > 0);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    if (mentionHits[0]) {
+                      setDraft((value) => insertMention(value, mentionHits[0].name));
+                      return;
+                    }
+                    void onSend();
+                  }
                 }}
               />
-              <button
-                type="submit"
-                disabled={!selectedId || !draft.trim()}
-                className="rounded-2xl bg-brand-500 px-5 py-3 text-sm font-bold text-white shadow-lift transition hover:bg-brand-600 disabled:opacity-40"
-              >
-                {t("chat.send")}
-              </button>
+              {draft.trim() ? (
+                <button
+                  type="submit"
+                  disabled={!selectedId}
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white shadow-lift"
+                  aria-label={t("chat.send")}
+                >
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <path d="M3.4 20.6 21 12 3.4 3.4l2 7.2L16 12l-10.6 1.4-2 7.2Z" />
+                  </svg>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!selectedId}
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-500 text-lg text-white disabled:opacity-40"
+                  aria-label={t("chat.voice")}
+                  onClick={() => setRecording(true)}
+                >
+                  🎤
+                </button>
+              )}
             </form>
+            )}
           </footer>
         </section>
       </div>

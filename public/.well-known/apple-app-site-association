@@ -1,0 +1,24 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAMID.com.akibaone.portal",
+        "paths": [
+          "/app/*",
+          "/invite/*",
+          "/r/*",
+          "/c/*",
+          "/t/*",
+          "/chat/*",
+          "/login",
+          "/register",
+          "*"
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["TEAMID.com.akibaone.portal"]
+  }
+}

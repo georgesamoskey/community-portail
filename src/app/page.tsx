@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { SignInButton } from "@/components/sign-in-button";
 import { useI18n } from "@/lib/i18n/context";
 
 export default function HomePage() {
@@ -59,15 +58,17 @@ export default function HomePage() {
             {t("landing.sub")}
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <SignInButton
-              label={t("landing.enterChat")}
-              callbackUrl="/app/chat"
-            />
             <Link
-              href="/login"
+              href={`/login?callbackUrl=${encodeURIComponent("/app/chat")}`}
+              className="inline-flex items-center justify-center rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-bold text-white shadow-lift transition hover:bg-brand-600"
+            >
+              {t("landing.enterChat")}
+            </Link>
+            <Link
+              href="/register"
               className="inline-flex items-center rounded-xl border border-ink/[0.1] bg-surface/90 px-5 py-2.5 text-sm font-semibold text-ink shadow-soft transition hover:border-brand-300"
             >
-              {t("landing.signIn")}
+              {t("auth.createAccount")}
             </Link>
           </div>
         </section>

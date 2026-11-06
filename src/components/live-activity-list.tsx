@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { MemberAvatar } from "@/components/member-avatar";
 import { cx } from "@/lib/cx";
+import { useI18n } from "@/lib/i18n/context";
 import { formatDateTime } from "@/lib/ui";
+import { resolveSystemEvent, systemEventCopy } from "@/lib/system-event-text";
 
 export type LiveActivityItem = {
   id?: string;
@@ -12,6 +15,10 @@ export type LiveActivityItem = {
   tontineId?: string | null;
   eventType?: string;
   content?: string;
+  eventData?: Record<string, unknown> | null;
+  actorUserId?: string | null;
+  actorName?: string | null;
+  actorAvatar?: string | null;
   createdAt?: string;
 };
 
@@ -29,33 +36,58 @@ const TONE: Record<string, string> = {
   tontine_round_completed: "border-brand-200 bg-brand-50 text-brand-950",
   tontine_completed: "border-amber-200 bg-amber-50 text-amber-950",
   room_created: "border-ink/10 bg-surface text-ink",
+  asca_cycle_opened: "border-brand-200 bg-brand-50 text-brand-950",
+  asca_cycle_closed: "border-brand-200 bg-brand-50 text-brand-950",
+  asca_loan_requested: "border-brand-200 bg-brand-50 text-brand-950",
+  asca_loan_sending: "border-brand-200 bg-brand-50 text-brand-950",
+  asca_loan_disbursed: "border-brand-200 bg-brand-50 text-brand-950",
+  asca_deposit: "border-brand-200 bg-brand-50 text-brand-950",
+  asca_loan_repaid: "border-brand-200 bg-brand-50 text-brand-950",
+  asca_loan_defaulted: "border-rose-200 bg-rose-50 text-rose-950",
 };
 
-function iconFor(type?: string): string {
+export function activityKind(type?: string | null): { icon: string; labelKey: string } {
   switch (type) {
     case "milestone_reached":
-      return "🎯";
+      return { icon: "🎯", labelKey: "home.actStep" };
     case "goal_reached":
-      return "🏁";
+      return { icon: "🏁", labelKey: "home.actGoal" };
     case "cotisation_confirmed":
+      return { icon: "✅", labelKey: "home.actOk" };
     case "tontine_round_paid":
-      return "✅";
+      return { icon: "✅", labelKey: "home.actRound" };
     case "cotisation_new":
-      return "💸";
+      return { icon: "💸", labelKey: "home.actPay" };
     case "commitment":
-      return "🤝";
+      return { icon: "🤝", labelKey: "home.actDeal" };
     case "tontine_defaulted":
-      return "⚠️";
+      return { icon: "⚠️", labelKey: "home.actMiss" };
     case "tontine_round_completed":
-      return "🔄";
+      return { icon: "🔄", labelKey: "home.actRound" };
     case "tontine_completed":
-      return "🏆";
+      return { icon: "🏆", labelKey: "home.actDone" };
     case "contribution_closed":
-      return "🔒";
+      return { icon: "🔒", labelKey: "home.actClose" };
     case "participant_joined":
-      return "👋";
+      return { icon: "👋", labelKey: "home.actJoin" };
+    case "participant_left":
+      return { icon: "👋", labelKey: "home.actLeave" };
+    case "room_created":
+      return { icon: "💬", labelKey: "home.actRoom" };
+    case "asca_cycle_opened":
+    case "asca_cycle_closed":
+      return { icon: "🔄", labelKey: "home.actCycle" };
+    case "asca_loan_requested":
+    case "asca_loan_sending":
+    case "asca_loan_disbursed":
+    case "asca_loan_defaulted":
+      return { icon: "🏦", labelKey: "home.actLoan" };
+    case "asca_deposit":
+      return { icon: "💰", labelKey: "home.actDeposit" };
+    case "asca_loan_repaid":
+      return { icon: "✅", labelKey: "home.actRepay" };
     default:
-      return "•";
+      return { icon: "•", labelKey: "home.actOther" };
   }
 }
 
@@ -70,6 +102,7 @@ export function LiveActivityList({
   showRoomLink?: boolean;
   compact?: boolean;
 }) {
+  const { t } = useI18n();
   if (!items.length) {
     return <p className="text-sm text-ink-mute">{emptyLabel}</p>;
   }
@@ -77,8 +110,9 @@ export function LiveActivityList({
   return (
     <ul className={cx("space-y-2", compact && "space-y-1.5")}>
       {items.map((it) => {
-        const tone =
-          TONE[it.eventType ?? ""] ?? "border-ink/10 bg-surface text-ink";
+        const fact = resolveSystemEvent(it.eventType, it.eventData);
+        const tone = TONE[fact] ?? "border-ink/10 bg-surface text-ink";
+        const kind = activityKind(fact);
         const href = it.roomId
           ? `/app/chat?room=${it.roomId}`
           : it.contributionId
@@ -95,8 +129,16 @@ export function LiveActivityList({
             )}
           >
             <div className="flex items-start gap-2">
-              <span className="shrink-0" aria-hidden>
-                {iconFor(it.eventType)}
+              {it.actorName ? (
+                <MemberAvatar
+                  name={it.actorName}
+                  avatarUrl={it.actorAvatar}
+                  size="sm"
+                  className="mt-0.5 shrink-0"
+                />
+              ) : null}
+              <span className="shrink-0 text-xs font-bold">
+                {kind.icon} {t(kind.labelKey)}
               </span>
               <div className="min-w-0 flex-1">
                 {showRoomLink && it.roomName ? (
@@ -104,7 +146,12 @@ export function LiveActivityList({
                     {it.roomName}
                   </p>
                 ) : null}
-                <p className="font-medium leading-snug">{it.content}</p>
+                {it.actorName ? (
+                  <p className="text-[11px] font-bold opacity-80">{it.actorName}</p>
+                ) : null}
+                <p className="font-medium leading-snug">
+                  {systemEventCopy(t, it.eventType, it.eventData, it.content).body}
+                </p>
                 {it.createdAt ? (
                   <p className="mt-0.5 text-[10px] opacity-60">
                     {formatDateTime(it.createdAt)}
