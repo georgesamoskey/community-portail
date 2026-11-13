@@ -17,25 +17,32 @@ export default {
           soft: "var(--ink-soft)",
           mute: "var(--ink-mute)",
           faint: "var(--ink-faint)",
-          // Échelle numérique du studio CMS (ex community-cms), migrée
-          // telle quelle pour le rendu des pages marketing/blog — ne
-          // remplace pas les tokens sémantiques ci-dessus.
-          50: "#f4f7f6",
-          100: "#e2ebe8",
-          200: "#c5d7d1",
-          700: "#2a4a42",
-          800: "#1c332e",
-          900: "#122420",
+          // Échelle numérique utilisée par le rendu des pages CMS
+          // (render-blocks.tsx) — alignée sur la palette « Confiance &
+          // Assurance » du portal (variables ci-dessus) au lieu de la
+          // teinte verte d'origine de community-cms, pour que les pages
+          // marketing/blog ne tranchent plus visuellement avec le reste
+          // de l'app.
+          50: "var(--background)",
+          100: "var(--line)",
+          200: "var(--surface-sunken)",
+          700: "var(--ink-soft)",
+          800: "var(--ink)",
+          900: "var(--brand-900)",
         },
+        // CTA/accents des pages CMS — alignés sur le bleu de marque
+        // (brand) au lieu du teal d'origine.
         lagoon: {
-          400: "#3db8a0",
-          500: "#1f9a82",
-          600: "#167a66",
-          700: "#115c4d",
+          400: "var(--brand-400)",
+          500: "var(--brand-500)",
+          600: "var(--brand-600)",
+          700: "var(--brand-700)",
         },
+        // Bandeau d'alerte/preview des pages CMS — aligné sur les tokens
+        // d'avertissement du portal.
         sun: {
-          400: "#f0c14d",
-          500: "#e2a820",
+          400: "var(--warn-border)",
+          500: "#d97706",
         },
         brand: {
           50: "var(--brand-50)",
