@@ -33,6 +33,7 @@ export default {
         // CTA/accents des pages CMS — alignés sur le bleu de marque
         // (brand) au lieu du teal d'origine.
         lagoon: {
+          50: "var(--brand-50)",
           400: "var(--brand-400)",
           500: "var(--brand-500)",
           600: "var(--brand-600)",

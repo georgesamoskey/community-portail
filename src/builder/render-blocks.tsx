@@ -101,7 +101,7 @@ function HeroBlock({ block }: { block: Extract<SiteBlock, { type: "hero" }> }) {
         styleToClassName(block.style, { bare: true }),
         !dark &&
           props.tone !== "image" &&
-          "bg-[radial-gradient(ellipse_at_top,#e8f5f1,transparent_60%)]",
+          "bg-[radial-gradient(ellipse_at_top,#eaf3fb,transparent_60%)]",
       )}
       style={shellStyle}
       data-block="hero"
@@ -119,7 +119,7 @@ function HeroBlock({ block }: { block: Extract<SiteBlock, { type: "hero" }> }) {
           ) : (
             <div
               aria-hidden
-              className="cms-glow absolute inset-0 bg-[radial-gradient(ellipse_at_20%_20%,rgba(61,184,160,0.35),transparent_50%),radial-gradient(ellipse_at_80%_10%,rgba(240,193,77,0.22),transparent_45%),linear-gradient(165deg,#0f2e28_0%,#167a66_48%,#1c332e_100%)]"
+              className="cms-glow absolute inset-0 bg-[radial-gradient(ellipse_at_20%_20%,rgba(69,143,200,0.35),transparent_50%),radial-gradient(ellipse_at_80%_10%,rgba(253,230,138,0.22),transparent_45%),linear-gradient(165deg,#061428_0%,#1a5276_48%,#0d1f33_100%)]"
             />
           )}
           <div
