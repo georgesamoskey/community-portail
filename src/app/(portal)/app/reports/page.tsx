@@ -6,6 +6,7 @@ import { useBff } from "@/lib/use-bff";
 import { useAction } from "@/lib/use-action";
 import { bffApi } from "@/lib/bff";
 import { normalizeList } from "@/lib/portal-api";
+import { SkeletonList } from "@/components/native-pro";
 import {
   Alert,
   Badge,
@@ -183,9 +184,7 @@ export default function ReportsPage() {
       </Panel>
 
       <Panel title={t("reports.list", { n: items.length })}>
-        {list.loading && (
-          <p className="text-sm text-ink-mute">{t("common.loading")}</p>
-        )}
+        {list.loading && <SkeletonList n={2} />}
         {list.error && <Alert>{list.error}</Alert>}
         {!list.loading && items.length === 0 && !list.error && (
           <EmptyState>{t("reports.empty")}</EmptyState>

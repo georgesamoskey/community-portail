@@ -20,6 +20,7 @@ import { MemberAvatar } from "@/components/member-avatar";
 import { MemberTrustBadge } from "@/components/member-trust-badge";
 import { memberDisplayName } from "@/lib/member-display";
 import { useTrustBatch } from "@/lib/use-trust-batch";
+import { SkeletonList } from "@/components/native-pro";
 
 type Invitation = {
   id?: string;
@@ -227,9 +228,7 @@ export default function InvitationsPage() {
         ))}
       </div>
 
-      {active.loading && (
-        <p className="text-sm text-ink-mute">{t("common.loading")}</p>
-      )}
+      {active.loading && <SkeletonList />}
       {active.error && <Alert>{active.error}</Alert>}
       {!active.loading && items.length === 0 ? (
         <EmptyState>{t("invitations.empty")}</EmptyState>

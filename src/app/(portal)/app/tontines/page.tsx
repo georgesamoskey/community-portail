@@ -20,6 +20,7 @@ import {
   statusTone,
 } from "@/lib/ui";
 import { TabFab } from "@/components/mobile-iso";
+import { SkeletonList } from "@/components/native-pro";
 import { countryLabel } from "@/lib/country-flag";
 import { displayCurrency, marketCurrencies } from "@/lib/mm-market";
 import { useMarketCountry } from "@/lib/use-market-country";
@@ -286,7 +287,7 @@ export default function TontinesPage() {
         </Panel>
       )}
 
-      {loading && <p className="text-sm text-brand-700/60">{t("common.loading")}</p>}
+      {loading && <SkeletonList />}
       {error && <Alert>{error}</Alert>}
       {!loading && !error && items.length === 0 && (
         <EmptyState>{t("tontines.empty")}</EmptyState>

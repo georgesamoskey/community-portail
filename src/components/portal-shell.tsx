@@ -308,6 +308,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
 
       <PullToRefresh onRefresh={onPullRefresh} disabled={isChat}>
         <main
+          id="portal-main"
           className={cx(
             "portal-page mx-auto",
             isChat
@@ -337,7 +338,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
       </button>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-ink/[0.06] bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
+        className="portal-bottom-nav fixed inset-x-0 bottom-0 z-50 border-t border-ink/[0.06] bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
         aria-label={t("nav.mainNav")}
       >
         <ul className="mx-auto flex max-w-lg items-stretch justify-between px-1 pt-1">
@@ -349,6 +350,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
               <li key={item.href} className="flex-1">
                 <Link
                   href={item.href}
+                  data-no-transition={isProfile ? "true" : undefined}
                   onClick={(e) => {
                     if (isProfile && (active || moreActive)) {
                       e.preventDefault();

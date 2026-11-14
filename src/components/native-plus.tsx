@@ -78,13 +78,16 @@ export function NavigationPolish() {
   const pathname = usePathname();
   const router = useRouter();
   const stack = useRef<string[]>([]);
+  const resolveTransition = useRef<(() => void) | null>(null);
+
+  // La nouvelle route a commité (nouveau contenu monté) → la View Transition
+  // en attente peut capturer le "after" et jouer l’animation.
+  useEffect(() => {
+    resolveTransition.current?.();
+    resolveTransition.current = null;
+  }, [pathname]);
 
   useEffect(() => {
-    // CSS navigation transitions (Chromium)
-    const style = document.createElement("style");
-    style.textContent = `@view-transition { navigation: auto; }`;
-    document.head.appendChild(style);
-
     const onTouchStart = (e: TouchEvent) => {
       const a = (e.target as Element | null)?.closest?.(
         "a[href^='/app']",
@@ -99,12 +102,55 @@ export function NavigationPolish() {
     };
     document.addEventListener("touchstart", onTouchStart, { passive: true });
 
+    // Capture (avant React/next-link) : on prend en charge nous-mêmes la
+    // navigation interne pour l'envelopper dans document.startViewTransition
+    // — next/link respecte e.defaultPrevented et n'appelle pas son propre
+    // router.push si on l'a déjà fait ici.
+    const doc = document as Document & {
+      startViewTransition?: (cb: () => void | Promise<void>) => void;
+    };
+    const onClickCapture = (e: MouseEvent) => {
+      if (typeof doc.startViewTransition !== "function") return;
+      if (e.defaultPrevented || e.button !== 0) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const a = (e.target as Element | null)?.closest?.("a") as HTMLAnchorElement | null;
+      if (!a || !a.href) return;
+      if (a.target && a.target !== "_self") return;
+      if (a.hasAttribute("download") || a.dataset.noTransition) return;
+      let url: URL;
+      try {
+        url = new URL(a.href, window.location.href);
+      } catch {
+        return;
+      }
+      if (url.origin !== window.location.origin) return;
+      const dest = url.pathname + url.search;
+      if (url.pathname === window.location.pathname && !url.hash) return;
+      e.preventDefault();
+      doc.startViewTransition!(() => {
+        return new Promise<void>((resolve) => {
+          resolveTransition.current = resolve;
+          router.push(dest + url.hash);
+          // Filet de sécurité : si pathname ne change jamais (redirection
+          // annulée, erreur, etc.), on ne bloque pas la transition suivante.
+          window.setTimeout(() => {
+            if (resolveTransition.current === resolve) {
+              resolveTransition.current = null;
+              resolve();
+            }
+          }, 1200);
+        });
+      });
+    };
+    document.addEventListener("click", onClickCapture, { capture: true });
+
     const onPop = () => haptic("light");
     window.addEventListener("popstate", onPop);
 
     return () => {
-      style.remove();
       document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("click", onClickCapture, { capture: true });
       window.removeEventListener("popstate", onPop);
     };
   }, [router]);

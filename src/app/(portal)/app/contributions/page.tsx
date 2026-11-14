@@ -23,6 +23,7 @@ import { useState } from "react";
 import { countryLabel } from "@/lib/country-flag";
 import { displayCurrency, marketCurrencies } from "@/lib/mm-market";
 import { useMarketCountry } from "@/lib/use-market-country";
+import { SkeletonList } from "@/components/native-pro";
 
 type Row = {
   id?: string;
@@ -276,9 +277,7 @@ export default function ContributionsPage() {
         ))}
       </div>
 
-      {active.loading && (
-        <p className="text-sm text-brand-600">{t("common.loading")}</p>
-      )}
+      {active.loading && <SkeletonList />}
       {active.error && <Alert>{active.error}</Alert>}
       {!active.loading && items.length === 0 && !active.error && (
         <EmptyState>{t("pots.empty")}</EmptyState>

@@ -6,6 +6,7 @@ import { useI18n } from "@/lib/i18n/context";
 import { useBff } from "@/lib/use-bff";
 import { normalizeList } from "@/lib/portal-api";
 import { LocalDataHint } from "@/components/offline-ui";
+import { SkeletonList } from "@/components/native-pro";
 import {
   ContributionCard,
   type ContributionLike,
@@ -57,7 +58,7 @@ function HistoryInner() {
       <LocalDataHint show={mine.fromCache} />
 
       {mine.loading && all.length === 0 ? (
-        <p className="text-sm text-ink-mute">{t("common.loading")}</p>
+        <SkeletonList />
       ) : all.length === 0 ? (
         <MobileEmpty
           title={t("history.empty")}
@@ -98,11 +99,8 @@ function HistoryInner() {
 }
 
 export default function HistoryPage() {
-  const { t } = useI18n();
   return (
-    <Suspense
-      fallback={<p className="text-sm text-ink-mute">{t("common.loading")}</p>}
-    >
+    <Suspense fallback={<SkeletonList />}>
       <HistoryInner />
     </Suspense>
   );

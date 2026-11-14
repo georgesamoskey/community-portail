@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n/context";
 import { useOfflineOptional } from "@/lib/offline/context";
 import { cx } from "@/lib/cx";
@@ -102,48 +102,139 @@ export function SwUpdateToast() {
 }
 
 /** Edge-swipe back (iOS-like) depuis le bord gauche. */
+const SWIPE_TARGET_ID = "portal-main";
+const SWIPE_COMMIT_PX = 90;
+const SWIPE_MAX_DRAG = 340;
+
+/** Swipe-back bord gauche, type iOS : la page suit le doigt en direct. */
 export function EdgeSwipeBack() {
   const router = useRouter();
+  const pathname = usePathname();
   const startX = useRef(0);
   const startY = useRef(0);
   const tracking = useRef(false);
+  const dragging = useRef(false);
+  const dx = useRef(0);
+  const committedHaptic = useRef(false);
+  const exiting = useRef(false);
+
+  const el = useCallback(
+    () => document.getElementById(SWIPE_TARGET_ID) as HTMLElement | null,
+    [],
+  );
+
+  const setTransform = useCallback(
+    (px: number, withTransition: boolean) => {
+      const node = el();
+      if (!node) return;
+      node.style.transition = withTransition
+        ? "transform 0.28s cubic-bezier(0.22,0.61,0.36,1), box-shadow 0.28s"
+        : "none";
+      node.style.transform = px > 0 ? `translateX(${px}px)` : "";
+      node.style.boxShadow =
+        px > 0 ? `-${Math.min(32, px / 4)}px 0 40px -12px rgb(0 0 0 / 0.25)` : "";
+    },
+    [el],
+  );
+
+  // La navigation a réellement eu lieu (nouveau contenu déjà monté dans
+  // #portal-main) → on peut remettre le transform à 0 sans transition,
+  // sans jamais faire réapparaître l’ancienne page.
+  useEffect(() => {
+    if (exiting.current) {
+      exiting.current = false;
+      setTransform(0, false);
+    }
+  }, [pathname, setTransform]);
 
   useEffect(() => {
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    const resetTransform = (withTransition: boolean) => {
+      setTransform(0, withTransition);
+    };
+
     const onStart = (e: TouchEvent) => {
       const t = e.touches[0];
       if (!t || t.clientX > 28) return;
       startX.current = t.clientX;
       startY.current = t.clientY;
       tracking.current = true;
+      dragging.current = false;
+      committedHaptic.current = false;
     };
+
     const onMove = (e: TouchEvent) => {
       if (!tracking.current) return;
       const t = e.touches[0];
       if (!t) return;
-      const dx = t.clientX - startX.current;
-      const dy = Math.abs(t.clientY - startY.current);
-      if (dy > 40) {
-        tracking.current = false;
-        return;
+      const rawDx = t.clientX - startX.current;
+      const rawDy = Math.abs(t.clientY - startY.current);
+      if (!dragging.current) {
+        // Décide du geste une fois le mouvement net (évite de voler le scroll vertical)
+        if (rawDy > 16 && rawDy > rawDx) {
+          tracking.current = false;
+          return;
+        }
+        if (rawDx > 8) dragging.current = true;
       }
-      if (dx > 90) {
-        tracking.current = false;
+      if (!dragging.current) return;
+      // Résistance progressive passé SWIPE_MAX_DRAG (effet élastique)
+      const eased =
+        rawDx <= SWIPE_MAX_DRAG
+          ? rawDx
+          : SWIPE_MAX_DRAG + (rawDx - SWIPE_MAX_DRAG) * 0.15;
+      dx.current = Math.max(0, eased);
+      setTransform(dx.current, false);
+      if (dx.current >= SWIPE_COMMIT_PX && !committedHaptic.current) {
+        committedHaptic.current = true;
         haptic("light");
-        router.back();
+      } else if (dx.current < SWIPE_COMMIT_PX) {
+        committedHaptic.current = false;
       }
     };
+
     const onEnd = () => {
+      if (!tracking.current) return;
       tracking.current = false;
+      if (!dragging.current) return;
+      dragging.current = false;
+      const node = el();
+      if (dx.current >= SWIPE_COMMIT_PX) {
+        exiting.current = true;
+        if (reduceMotion || !node) {
+          router.back();
+          return;
+        }
+        const width = node.getBoundingClientRect().width || window.innerWidth;
+        setTransform(width, true);
+        // Filet de sécurité si la navigation n’aboutit pas (ex. pas d’historique)
+        window.setTimeout(() => {
+          if (exiting.current) {
+            exiting.current = false;
+            resetTransform(true);
+          }
+        }, 900);
+        router.back();
+      } else {
+        resetTransform(true);
+      }
+      dx.current = 0;
     };
+
     document.addEventListener("touchstart", onStart, { passive: true });
     document.addEventListener("touchmove", onMove, { passive: true });
     document.addEventListener("touchend", onEnd);
+    document.addEventListener("touchcancel", onEnd);
     return () => {
       document.removeEventListener("touchstart", onStart);
       document.removeEventListener("touchmove", onMove);
       document.removeEventListener("touchend", onEnd);
+      document.removeEventListener("touchcancel", onEnd);
     };
-  }, [router]);
+  }, [router, el, setTransform]);
 
   return null;
 }

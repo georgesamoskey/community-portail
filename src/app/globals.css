@@ -282,6 +282,55 @@ html.dark .akiba-app-shell nav[aria-label] {
   .native-pressable:active {
     transform: none;
   }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* Transition entre pages (document.startViewTransition, cf. NavigationPolish) :
+   la page sortante glisse légèrement vers la gauche en s’effaçant, la page
+   entrante arrive de la droite — sensation "push" façon iOS/Android. */
+@keyframes native-page-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+
+@keyframes native-page-in {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+::view-transition-old(root) {
+  animation: native-page-out 0.18s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+::view-transition-new(root) {
+  animation: native-page-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* La barre de nav mobile ne doit jamais bouger pendant la transition —
+   sinon elle glisse avec le reste de la page comme le header. */
+.portal-bottom-nav {
+  view-transition-name: portal-bottom-nav;
+}
+
+::view-transition-old(portal-bottom-nav),
+::view-transition-new(portal-bottom-nav) {
+  animation: none;
 }
 
 ::selection {

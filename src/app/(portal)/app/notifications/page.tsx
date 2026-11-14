@@ -8,6 +8,7 @@ import { useBff } from "@/lib/use-bff";
 import { normalizeList, type NotificationRow } from "@/lib/portal-api";
 import { formatDateTime } from "@/lib/ui";
 import { cx } from "@/lib/cx";
+import { SkeletonList } from "@/components/native-pro";
 
 function invitationCodeOf(n: NotificationRow): string | null {
   const direct = n.data?.invitationCode;
@@ -204,7 +205,7 @@ export default function NotificationsPage() {
       )}
 
       {list.loading && !items.length ? (
-        <p className="text-sm text-brand-600">{t("common.loading")}</p>
+        <SkeletonList />
       ) : items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-brand-200 p-8 text-center text-sm text-brand-700/70">
           {t("notifications.empty")}

@@ -14,6 +14,7 @@ import { CountryBadge } from "@/components/country-select";
 import { displayCurrency } from "@/lib/mm-market";
 import { Alert, Badge, EmptyState, money, PageHeader } from "@/lib/ui";
 import { useTrustBatch } from "@/lib/use-trust-batch";
+import { SkeletonList } from "@/components/native-pro";
 
 type Row = {
   id?: string;
@@ -209,9 +210,7 @@ export default function DiscoverPage() {
         <h2 className="font-display text-xl font-bold text-ink">
           {t("discover.publicPots")}
         </h2>
-        {publicCagnottes.loading && (
-          <p className="text-sm text-ink-mute">{t("common.loading")}</p>
-        )}
+        {publicCagnottes.loading && <SkeletonList n={2} />}
         {publicCagnottes.error && <Alert>{publicCagnottes.error}</Alert>}
         {!publicCagnottes.loading && publicList.length === 0 && (
           <EmptyState>{t("discover.noPublic")}</EmptyState>
@@ -249,9 +248,7 @@ export default function DiscoverPage() {
         <h2 className="font-display text-xl font-bold text-ink">
           {t("discover.feed")}
         </h2>
-        {feed.loading && (
-          <p className="text-sm text-ink-mute">{t("common.loading")}</p>
-        )}
+        {feed.loading && <SkeletonList n={2} />}
         {feed.error && (
           <p className="text-sm text-ink-mute">
             {t("discover.feedFail")} ({feed.error})
